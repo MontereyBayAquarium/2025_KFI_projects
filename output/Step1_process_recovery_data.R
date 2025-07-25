@@ -149,7 +149,9 @@ quad_raw_build1 <- quad_raw %>%
   # Extrapolate densities for subsamples
   ##############################################################################
 #first change NA to 0 --- these are true zeroes
-mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled, tegula, pomaulax),
+mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled,
+                lamr, macr, macj, nerj, ptej, lsetj, eisj,
+                tegula, pomaulax),
               ~ replace_na(.x, 0))) %>%
   #next change subsampled quadrants to 4 if NA --- these are assumed 4
   mutate(across(c(purple_quadrants_sampled, red_quadrants_sampled, tegula_quadrants_sampled, 
@@ -184,6 +186,7 @@ mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled, te
            transect, quadrat, substrate, relief, risk, species, 
            purple_urchin_densitym2, purple_urchin_conceiledm2,
            red_urchin_densitym2, red_urchin_conceiledm2, 
+           lamr, macr, macj, nerj, ptej, lsetj, eisj,
            tegula_densitym2, pomaulax_densitym2) %>%
   summarise(
     percent_cover = (n() / first(total_points)) * 100,  # Use total points dynamically for each quadrat
@@ -221,7 +224,15 @@ mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled, te
   ##############################################################################
   #join with site table and uopdate site names
   ##############################################################################
-  mutate(year = year(survey_date)) 
+  mutate(year = year(survey_date)) %>%
+  #clean up names
+  rename(lamr_densitym2 = lamr,
+         macr_densitym2 = macr,
+         macj_densitym2 = macj,
+         nerj_densitym2 = nerj,
+         ptej_densitym2 = ptej,
+         lsetj_densitym2 = lsetj,
+         eisj_densitym2 = eisj)
 
   # Step 2: Prepare the lookup table from reco_meta_build1
   site_lookup <- reco_meta_build1 %>%
