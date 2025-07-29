@@ -42,7 +42,6 @@ library(readr)
 #Data Importing and Cleaning
 ```{r}
 
-
 # Load libraries
 library(readr)
 library(dplyr)
