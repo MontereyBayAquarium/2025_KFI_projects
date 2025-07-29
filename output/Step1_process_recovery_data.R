@@ -32,6 +32,8 @@ reco_meta <- read_sheet("https://docs.google.com/spreadsheets/d/1EnLOhGma-IBsMr4
 
 ################################################################################
 # process metadata
+################################################################################
+
 reco_meta_build1 <- reco_meta %>%
   mutate(across(everything(), as.character)) %>%       # Convert all columns to character
   mutate(across(everything(), ~ na_if(., "NULL"))) %>% # Replace "NULL" with NA
@@ -107,6 +109,7 @@ reco_meta_build1 <- reco_meta %>%
 
 ################################################################################
 # process quadrat entry
+################################################################################
 
 quad_raw_build1 <- quad_raw %>%
   # Remove example first row and classifiers
@@ -148,59 +151,142 @@ quad_raw_build1 <- quad_raw %>%
   ##############################################################################
   # Extrapolate densities for subsamples
   ##############################################################################
-#first change NA to 0 --- these are true zeroes
-mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled,
-                lamr, macr, macj, nerj, ptej, lsetj, eisj,
-                tegula, pomaulax),
-              ~ replace_na(.x, 0))) %>%
-  #next change subsampled quadrants to 4 if NA --- these are assumed 4
-  mutate(across(c(purple_quadrants_sampled, red_quadrants_sampled, tegula_quadrants_sampled, 
-                  pomaulax_quadrants_sampled),
-                ~ replace_na(.x, 4))) %>%
-  #now apply scalar
+  #first change NA to 0 --- these are true zeroes
+  mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled,
+                  lamr, macr, macj, nerj, ptej, lsetj, eisj,
+                  tegula, pomaulax),
+                ~ replace_na(.x, 0))) %>%
+    #next change subsampled quadrants to 4 if NA --- these are assumed 4
+    mutate(across(c(purple_quadrants_sampled, red_quadrants_sampled, tegula_quadrants_sampled, 
+                    pomaulax_quadrants_sampled),
+                  ~ replace_na(.x, 4))) %>%
+    #now apply scalar
+    mutate(
+      purple_urchin_densitym2 = purple_urchins * (4 / purple_quadrants_sampled),
+      purple_urchin_conceiledm2 = purple_conceiled * (4 / purple_quadrants_sampled),
+      red_urchin_densitym2 = red_urchins * (4 / red_quadrants_sampled),
+      red_urchin_conceiledm2 = red_conceiled * (4 / red_quadrants_sampled),
+      tegula_densitym2 = tegula * (4 / tegula_quadrants_sampled),
+      pomaulax_densitym2 = pomaulax * (4 / pomaulax_quadrants_sampled)
+    ) %>%
+    # Drop old columns
+    select(-purple_urchins, -purple_conceiled, -purple_quadrants_sampled,
+           -red_urchins, -red_conceiled, -red_quadrants_sampled,
+           -tegula, -tegula_quadrants_sampled, -pomaulax, -pomaulax_quadrants_sampled) %>%
+    ##############################################################################
+    #calculate upc
+    ##############################################################################
+    # Step 1: Convert upc1 through upc8 columns to long format
+    pivot_longer(cols = starts_with("upc"), names_to = "upc", values_to = "species") %>%
+    # Remove rows where species is NA (ignoring those UPC points)
+    filter(!is.na(species)) %>%
+    # Group by quadrat and calculate total UPC points per quadrat
+    group_by(site, site_type, zone, survey_date,
+             transect, quadrat, substrate) %>%
+    mutate(total_points = n()) %>%  # Calculate total points per quadrat
+    # Calculate percent cover for each species based on the total points that were quantified
+    group_by(site, site_type, zone, survey_date, 
+             transect, quadrat, substrate, relief, risk, species, 
+             purple_urchin_densitym2, purple_urchin_conceiledm2,
+             red_urchin_densitym2, red_urchin_conceiledm2, 
+             lamr, macr, macj, nerj, ptej, lsetj, eisj,
+             tegula_densitym2, pomaulax_densitym2) %>%
+    summarise(
+      percent_cover = (n() / first(total_points)) * 100,  # Use total points dynamically for each quadrat
+      .groups = 'drop'
+    ) %>%
+    # Step 4: Reshape back to wide format with species as columns, adding 'upc_' prefix
+    pivot_wider(names_from = species, values_from = percent_cover, values_fill = 0,
+                names_prefix = "upc_") %>%
+    # Clean column names and remove any columns with 'na' in the name
+    clean_names() %>%
+    #clean up
+    mutate(substrate = word(substrate, 1)) %>%
+    #clean up
+    rename_with(~ str_replace(., "^upc_", "cov_")) %>%
+    ##############################################################################
+    # Apply standard site naming
+    ##############################################################################
+    mutate(
+      # Use a function within str_replace to process each match
+      site = str_replace(site, "([A-Za-z]+)([0-9]+)", function(x) {
+        # Extract letters and numbers
+        parts <- str_match(x, "([A-Za-z]+)([0-9]+)")
+        letters <- toupper(parts[, 2])   # Convert to uppercase if needed
+        numbers <- parts[, 3]
+        # Pad numbers with leading zero
+        numbers_padded <- str_pad(numbers, width = 2, side = "left", pad = "0")
+        # Combine parts with underscore
+        paste0(letters, "_", numbers_padded)
+      })) %>%
+    #rename(date_surveyed = survey_date)%>%
+    #get the latest survey date for each site, site_type, zone, and transect by
+    #joining metadata
+    #check what didn't work
+    #fix dates
+    ##############################################################################
+    #join with site table and uopdate site names
+    ##############################################################################
+    mutate(year = year(survey_date)) %>%
+    #clean up names
+    rename(lamr_densitym2 = lamr,
+           macr_densitym2 = macr,
+           macj_densitym2 = macj,
+           nerj_densitym2 = nerj,
+           ptej_densitym2 = ptej,
+           lsetj_densitym2 = lsetj,
+           eisj_densitym2 = eisj)
+  
+    # Step 2: Prepare the lookup table from reco_meta_build1
+    site_lookup <- reco_meta_build1 %>%
+      select(site_old, site_new = site) %>%
+      distinct()
+    
+    # Step 3: Join and update only where year is 2024
+    quad_raw_build2 <- quad_raw_build1 %>%
+      left_join(site_lookup, by = c("site" = "site_old")) %>%
+      mutate(site = if_else(year == 2024 & !is.na(site_new), site_new, site)) %>%
+      select(-site_new, -year)
+  
+
+#remove everything except quad_raw_build1 
+quad_data <- quad_raw_build1
+rm(list = setdiff(ls(), "quad_data"))
+
+
+
+
+################################################################################
+#Step 2 - process urchin size data
+################################################################################
+
+
+#build raw size fq
+urch_build <- urchin_raw %>%
+  # Remove example first row and classifiers
+  slice(-1) %>%
+  select(-windows_ctrl_alt_shift_9_mac_command_option_shift_9) %>%
+  # Set column types
   mutate(
-    purple_urchin_densitym2 = purple_urchins * (4 / purple_quadrants_sampled),
-    purple_urchin_conceiledm2 = purple_conceiled * (4 / purple_quadrants_sampled),
-    red_urchin_densitym2 = red_urchins * (4 / red_quadrants_sampled),
-    red_urchin_conceiledm2 = red_conceiled * (4 / red_quadrants_sampled),
-    tegula_densitym2 = tegula * (4 / tegula_quadrants_sampled),
-    pomaulax_densitym2 = pomaulax * (4 / pomaulax_quadrants_sampled)
+    name_of_data_enterer = factor(name_of_data_enterer),
+    site = factor(site),
+    site_type = factor(site_type),
+    zone = factor(zone),
+    survey_date = ymd(date),
+    transect = as.numeric(transect),
+    depth = as.numeric(depth),
+    depth_units = factor(depth_units),
+    species = factor(species),
+    size = factor(size),
+    count = as.numeric(count)
   ) %>%
-  # Drop old columns
-  select(-purple_urchins, -purple_conceiled, -purple_quadrants_sampled,
-         -red_urchins, -red_conceiled, -red_quadrants_sampled,
-         -tegula, -tegula_quadrants_sampled, -pomaulax, -pomaulax_quadrants_sampled) %>%
-  ##############################################################################
-  #calculate upc
-  ##############################################################################
-  # Step 1: Convert upc1 through upc8 columns to long format
-  pivot_longer(cols = starts_with("upc"), names_to = "upc", values_to = "species") %>%
-  # Remove rows where species is NA (ignoring those UPC points)
-  filter(!is.na(species)) %>%
-  # Group by quadrat and calculate total UPC points per quadrat
-  group_by(site, site_type, zone, survey_date,
-           transect, quadrat, substrate) %>%
-  mutate(total_points = n()) %>%  # Calculate total points per quadrat
-  # Calculate percent cover for each species based on the total points that were quantified
-  group_by(site, site_type, zone, survey_date, 
-           transect, quadrat, substrate, relief, risk, species, 
-           purple_urchin_densitym2, purple_urchin_conceiledm2,
-           red_urchin_densitym2, red_urchin_conceiledm2, 
-           lamr, macr, macj, nerj, ptej, lsetj, eisj,
-           tegula_densitym2, pomaulax_densitym2) %>%
-  summarise(
-    percent_cover = (n() / first(total_points)) * 100,  # Use total points dynamically for each quadrat
-    .groups = 'drop'
-  ) %>%
-  # Step 4: Reshape back to wide format with species as columns, adding 'upc_' prefix
-  pivot_wider(names_from = species, values_from = percent_cover, values_fill = 0,
-              names_prefix = "upc_") %>%
-  # Clean column names and remove any columns with 'na' in the name
-  clean_names() %>%
-  #clean up
-  mutate(substrate = word(substrate, 1)) %>%
-  #clean up
-  rename_with(~ str_replace(., "^upc_", "cov_")) %>%
+  #convert feet to meters
+  mutate(depth_m = ifelse(depth_units == "Feet",depth*0.3048,depth)) %>%
+  select(-depth_units, -depth) %>%
+  select(name_of_data_enterer, survey_date, everything()) %>%
+  mutate(size = as.numeric(as.character(size))) %>%
+  rename(size_cm = size) %>% select(-x15) %>%
+  select(-date)%>%
   ##############################################################################
   # Apply standard site naming
   ##############################################################################
@@ -215,41 +301,59 @@ mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled,
       numbers_padded <- str_pad(numbers, width = 2, side = "left", pad = "0")
       # Combine parts with underscore
       paste0(letters, "_", numbers_padded)
-    })) %>%
-  #rename(date_surveyed = survey_date)%>%
-  #get the latest survey date for each site, site_type, zone, and transect by
-  #joining metadata
-  #check what didn't work
-  #fix dates
-  ##############################################################################
-  #join with site table and uopdate site names
-  ##############################################################################
-  mutate(year = year(survey_date)) %>%
-  #clean up names
-  rename(lamr_densitym2 = lamr,
-         macr_densitym2 = macr,
-         macj_densitym2 = macj,
-         nerj_densitym2 = nerj,
-         ptej_densitym2 = ptej,
-         lsetj_densitym2 = lsetj,
-         eisj_densitym2 = eisj)
+    }))
 
-  # Step 2: Prepare the lookup table from reco_meta_build1
-  site_lookup <- reco_meta_build1 %>%
-    select(site_old, site_new = site) %>%
-    distinct()
-  
-  # Step 3: Join and update only where year is 2024
-  quad_raw_build2 <- quad_raw_build1 %>%
-    left_join(site_lookup, by = c("site" = "site_old")) %>%
-    mutate(site = if_else(year == 2024 & !is.na(site_new), site_new, site)) %>%
-    select(-site_new, -year)
+    # Step 2: Join and update only where year is 2024
+    urch_build2 <- urch_build %>%
+      mutate(year = year(survey_date))%>%
+      left_join(site_lookup, by = c("site" = "site_old")) %>%
+      mutate(site = if_else(year == 2024 & !is.na(site_new), site_new, site)) %>%
+      select(-site_new, -year) %>%
+      select(site, site_type, survey_date, everything())
+
+################################################################################
+#Step 3 - process swath data ********* WORKING
+################################################################################
+
+    #build kelp
+    kelp_build <- kelp_raw %>%
+      select(-windows_ctrl_alt_shift_8_mac_command_option_shift_8) %>%
+      # Set column types
+      mutate(
+        name_of_data_enterer = factor(name_of_data_enterer),
+        site = factor(site),
+        site_type = factor(site_type),
+        zone = factor(zone),
+        survey_date = ymd(date),
+        transect = as.numeric(transect),
+        depth = as.numeric(depth),
+        depth_units = factor(depth_units),
+        species = factor(species),
+        count = as.numeric(count)
+      ) %>%
+      #convert feet to meters
+      mutate(depth_m = ifelse(depth_units == "Feet",depth*0.3048,depth)) %>%
+      select(-depth_units, -depth, -date) 
+    
+    # Step 2: Join and update only where year is 2024
+    kelp_build2 <- kelp_build %>%
+      mutate(year = year(survey_date))%>%
+      left_join(site_lookup, by = c("site" = "site_old")) %>%
+      mutate(site = if_else(year == 2024 & !is.na(site_new), site_new, site)) %>%
+      select(-site_new, -year) %>%
+      select(site, site_type, survey_date, everything())
+
+    ##############################################################################
+    #calculate macro density
+    ##############################################################################
+    macro_density <- kelp_build %>% filter(species == "MACPYR") %>%
+      #macro is not subsampled
+      select(-subsample_meter, -count) %>%
+      group_by(survey_date, site, site_type, zone, 
+               transect)%>%
+      summarize(n_macro_plants_20m2 = n(),
+                macro_stipe_density_20m2 = mean(stipe_counts_macrocystis_only, na.rm =TRUE),
+                macro_stipe_sd_20m2 = sd(stipe_counts_macrocystis_only, na.rm =TRUE),
+      ) 
 
 
-#remove everything except quad_raw_build1 
-quad_data <- quad_raw_build1
-rm(list = setdiff(ls(), "quad_data"))
-
-  
-  
-  
