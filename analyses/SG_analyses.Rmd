@@ -88,6 +88,34 @@ reco_meta <- load_or_download(meta_path,
                               "https://docs.google.com/spreadsheets/d/1EnLOhGma-IBsMr4nLl159BfLarCeHO25k2yhLnDsTow/edit#gid=134064181", 
                               sheet_number = 3)
 
+```
+
+```{r}
+rm(list=ls())
+
+require(librarian) #use install.packages('librarian') if not already installed
+librarian::shelf(tidyverse,here, janitor, googlesheets4, lubridate, splitstackshape,
+                 googledrive)
+
+#gs4_auth()
+
+
+#read original data
+quad_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
+                       sheet = 1) %>% clean_names()
+
+urchin_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
+                         sheet = 2) %>% clean_names()
+
+
+kelp_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
+                       sheet = 3) %>% clean_names()
+
+#site metdata
+reco_meta <- read_sheet("https://docs.google.com/spreadsheets/d/1EnLOhGma-IBsMr4nLl159BfLarCeHO25k2yhLnDsTow/edit?gid=134064181#gid=134064181",
+                       sheet = 3) %>% clean_names()
+```
+```{r}
 
 ################################################################################
 # process metadata
@@ -297,9 +325,18 @@ mutate(across(c(purple_urchins, purple_conceiled, red_urchins, red_conceiled, te
 
 #remove everything except quad_raw_build1 
 quad_data <- quad_raw_build2
-rm(list = setdiff(ls(), "quad_data"))
+#rm(list = setdiff(ls(), "quad_data"))
 
 ```
+
+```{r}
+require(tidyverse)  
+require(here)
+
+load(here::here("output", 
+```
+
+
 
 ```{r}
 ###averaging counts and % cover per transect
