@@ -251,7 +251,7 @@ quad_raw_build1 <- quad_raw %>%
 
 #remove everything except quad_raw_build1 
 quad_data <- quad_raw_build1
-rm(list = setdiff(ls(), "quad_data"))
+
 
 
 
@@ -310,9 +310,11 @@ urch_build <- urchin_raw %>%
       mutate(site = if_else(year == 2024 & !is.na(site_new), site_new, site)) %>%
       select(-site_new, -year) %>%
       select(site, site_type, survey_date, everything())
+    
+urch_size_fq <- urch_build
 
 ################################################################################
-#Step 3 - process swath data ********* WORKING
+#Step 3 - process swath data 
 ################################################################################
 
     #build kelp
@@ -333,7 +335,23 @@ urch_build <- urchin_raw %>%
       ) %>%
       #convert feet to meters
       mutate(depth_m = ifelse(depth_units == "Feet",depth*0.3048,depth)) %>%
-      select(-depth_units, -depth, -date) 
+      select(-depth_units, -depth, -date) %>%
+      ##############################################################################
+    # Apply standard site naming
+    ##############################################################################
+    mutate(
+      # Use a function within str_replace to process each match
+      site = str_replace(site, "([A-Za-z]+)([0-9]+)", function(x) {
+        # Extract letters and numbers
+        parts <- str_match(x, "([A-Za-z]+)([0-9]+)")
+        letters <- toupper(parts[, 2])   # Convert to uppercase if needed
+        numbers <- parts[, 3]
+        # Pad numbers with leading zero
+        numbers_padded <- str_pad(numbers, width = 2, side = "left", pad = "0")
+        # Combine parts with underscore
+        paste0(letters, "_", numbers_padded)
+      }))
+    
     
     # Step 2: Join and update only where year is 2024
     kelp_build2 <- kelp_build %>%
@@ -356,4 +374,82 @@ urch_build <- urchin_raw %>%
                 macro_stipe_sd_20m2 = sd(stipe_counts_macrocystis_only, na.rm =TRUE),
       ) 
 
+    # Fill in missing site_type from reco_meta_build1
+    macro_density_filled <- macro_density %>%
+      left_join(
+        reco_meta_build1 %>%
+          select(site, zone, site_type),
+        by = c("site", "zone"),
+        suffix = c("", ".meta")
+      ) %>%
+      mutate(site_type = coalesce(site_type, site_type.meta)) %>%
+      select(-site_type.meta)
+    
+    # Expand the data to include all combinations
+    macro_data <- macro_density_filled %>%
+      ungroup() %>%
+      complete(
+        survey_date,
+        site,
+        site_type,
+        zone,
+        transect,
+        fill = list(
+          n_macro_plants_20m2 = 0,
+          macro_stipe_density_20m2 = 0,
+          macro_stipe_sd_20m2 = 0
+        )
+      )
+    
+    ##############################################################################
+    #calculate density of all other algae.
+    #Note:: Macrocystis is not sub-sampled. All other are. We need to create a 
+    #scalar to extrapolate counts to the full transect. 
+    ##############################################################################
+
+    kelp_data <- kelp_build %>%
+      filter(species != "MACPYR") %>%
+      select(-stipe_counts_macrocystis_only) %>%
+      
+      # Fix subsample meters to linear meters sampled
+      mutate(
+        linear_meters_sampled = case_when(
+          subsample_meter < 10 ~ subsample_meter,
+          subsample_meter >= 10 & subsample_meter <= 20 ~ subsample_meter - 10,
+          subsample_meter > 20 & subsample_meter <= 30 ~ 30 - subsample_meter,
+          TRUE ~ subsample_meter
+        ),
+        linear_meters_sampled = ifelse(is.na(linear_meters_sampled), 10, linear_meters_sampled),
+        scalar = 10 / linear_meters_sampled,
+        scalar = ifelse(scalar == 0, 1, scalar),
+        density_20m2 = count * scalar
+      ) %>%
+      
+      # Rename species column so we get proper pivot column names
+      mutate(species_name = paste0("density20m2_", species)) %>%
+      
+      # Aggregate density_20m2 in case there are duplicate rows
+      group_by(survey_date, site, site_type, zone, transect, species_name) %>%
+      summarise(density_20m2 = sum(density_20m2, na.rm = TRUE), .groups = "drop") %>%
+      
+      # Pivot wider
+      pivot_wider(
+        names_from = species_name,
+        values_from = density_20m2,
+        values_fill = list(density_20m2 = 0)
+      ) %>%
+      
+      clean_names()
+    
+##############################################################################
+#export
+##############################################################################
+
+keep_vars <- c("quad_data", "urch_size_fq", "macro_data", "kelp_data")
+rm(list = setdiff(ls(), keep_vars))
+    
+save(quad_data, urch_size_fq, macro_data, kelp_data,
+   file = here("output/processed", "cleaned_survey_data.Rda"))
+    
+    
 
