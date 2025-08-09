@@ -105,7 +105,7 @@ macro_avgs <- macro_data %>%
     across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
     .groups = "drop")
 
-view(macro_avgs)
+
 ```
 
 
@@ -145,7 +145,7 @@ year_one_data %>%
   summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
   
 
-view(year_one_data)
+
 
 ```
 
@@ -166,7 +166,7 @@ year_one_data[cols_to_scale] <- lapply(year_one_data[cols_to_scale], function(x)
 names(year_one_data)[names(year_one_data) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model <- lda(site_type ~ macro_stipe_density_ + densitymacstump + densityptecal + densitynerlue + densitylamset + densityeisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_one_data)
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_one_data)
 
 
 #lda figure
@@ -181,26 +181,23 @@ pred <- predict(lda_model)
 
 pred_class <- pred$class
 
-table(Actual = year_one_data$site_type, Predicted = pred_class)
-
 results <- year_one_data %>%
   mutate(predicted = pred_class, 
          match = site_type == predicted)
 
-view(results)
-
-mismatches <- results %>% filter(!match)
-
-view(mismatches)
-
 results <- results %>%
   dplyr::select(year, site, zone, site_type, predicted, match, everything())
 
+mismatches <- results %>% filter(!match)
+
+mismatches
+
 results 
 
-pred <- predict(lda_model)
-table(Predicted = pred$class, Actual = year_one_data$site_type)
-mean(pred$class == year_one_data$site_type)
+library(caret)
+confusionMatrix(pred_class, year_one_data$site_type)
+
+#two sites predicted differently, 
 
 ```
 ###testing the stats of the lda 
@@ -212,26 +209,14 @@ set.seed(123)       # For reproducibility
 n_perm <- 999       # Number of permutations for significance testing
 
 # ---- LDA ----
-lda_model <- lda(site_type ~ macro_stipe_density_ + densitymacstump + densityptecal + 
-                   densitynerlue + densitylamset + densityeisarb + purple_urchin_densitym2 + 
-                   purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + 
-                   macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2 + 
-                   tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + 
-                   cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + 
-                   cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
                  data = year_one_data)
 
 cat("\n---- LDA Summary ----\n")
 print(lda_model)
 
 # ---- CROSS-VALIDATION ----
-lda_cv <- lda(site_type ~ macro_stipe_density_ + densitymacstump + densityptecal + 
-                densitynerlue + densitylamset + densityeisarb + purple_urchin_densitym2 + 
-                purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + 
-                macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2 + 
-                tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + 
-                cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + 
-                cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
+lda_cv <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
               data = year_one_data,
               CV = TRUE)
 
@@ -249,13 +234,7 @@ acc_perm <- numeric(n_perm)
 for (i in 1:n_perm) {
   shuffled <- year_one_data
   shuffled$site_type <- sample(shuffled$site_type)
-  lda_perm <- lda(site_type ~ macro_stipe_density_ + densitymacstump + densityptecal + 
-                    densitynerlue + densitylamset + densityeisarb + purple_urchin_densitym2 + 
-                    purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + 
-                    macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2 + 
-                    tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + 
-                    cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + 
-                    cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
+  lda_perm <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
                   data = shuffled,
                   CV = TRUE)
   acc_perm[i] <- mean(lda_perm$class == shuffled$site_type)
@@ -314,18 +293,45 @@ ggplot(coef_long, aes(x = reorder(variable, coefficient), y = coefficient, fill 
 ```
 
 
-##LDA with smallest replicable units 
+##LDA at transect level
 ###creating the new dataframe with merging the og dfs
 ```{r}
 
-#QUESTION FOR JOSH: i think something is getting messed up here when i merge the dfs because quad data has transect but swath and macro data doesn't
+
+library(dplyr)
+
+# Function to get mode (most common value)
+get_mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+quad_data_transect <- quad_data %>%
+  group_by(site, site_type, zone, survey_date, transect) %>%
+  summarise(
+    # Categorical
+    substrate = get_mode(substrate),
+    
+    # Relief & risk: mean
+    relief = mean(relief, na.rm = TRUE),
+    risk = mean(risk, na.rm = TRUE),
+    
+    # Densities: mean across quadrats
+    across(ends_with("m2"), ~ mean(.x, na.rm = TRUE)),
+    
+    # Coverage: mean across quadrats
+    across(starts_with("cov_"), ~ mean(.x, na.rm = TRUE)),
+    
+    .groups = "drop"
+  )
 
 
 merged_data_2 <- kelp_data %>%
   mutate(site = if_else(site == "RECO_04", "REC_04", site)) %>%
   filter(!(site == "REC_05" & site_type == "INCIP" & zone == "Shallow" & survey_date == as.Date("2025-06-09"))) %>%
-  left_join(quad_transect_avgs, by = c("site", "site_type", "zone", "survey_date")) %>%
-  left_join(macro_data, by = c("site","site_type", "zone", "survey_date"))
+  inner_join(macro_data, by = c("site", "site_type", "zone", "survey_date", "transect")) %>%
+  inner_join(quad_data_transect, by = c("site", "site_type", "zone", "survey_date", "transect"))
+
 
 
 #creating a new column that just has years for future analysis  
@@ -334,73 +340,71 @@ merged_data_2$year <- as.numeric(format(merged_data_2$survey_date, "%Y"))
 
 #normalizing 2024 data 
 
-year_one_data_2 <- merged_data_2 %>% 
+year_one_data_transect <- merged_data_2 %>% 
   filter(year == 2024) %>%
   filter() %>%
   dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
 
-year_one_data_2[sapply(year_one_data_2, is.numeric)] <-
-  lapply(year_one_data_2[sapply(year_one_data_2, is.numeric)],
+year_one_data_transect[sapply(year_one_data_transect, is.numeric)] <-
+  lapply(year_one_data_transect[sapply(year_one_data_transect, is.numeric)],
          function(x) { x[is.na(x)] <- 0; x })
 
-year_one_data_2 %>%
-  group_by(site, site_type, zone, year) %>%
+year_one_data_transect %>%
+  group_by(site, site_type, zone, year, transect) %>%
   summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
 ```
 ###running the new LDA
 ```{r}
-year_one_data_2$site_type <- as.factor(year_one_data_2$site_type)
+year_one_data_transect$site_type <- as.factor(year_one_data_transect$site_type)
   
 # Identify columns that contain "20m2"
-cols_to_scale <- grep("20m2", names(year_one_data_2), value = TRUE)
+cols_to_scale <- grep("20m2", names(year_one_data_transect), value = TRUE)
 
 # Divide those columns by 20
-year_one_data_2[cols_to_scale] <- lapply(year_one_data_2[cols_to_scale], function(x) x / 20)
+year_one_data_transect[cols_to_scale] <- lapply(year_one_data_transect[cols_to_scale], function(x) x / 20)
 
 # 3. Rename those columns by removing "20m2_"
-names(year_one_data_2)[names(year_one_data_2) %in% cols_to_scale] <-
+names(year_one_data_transect)[names(year_one_data_transect) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model_2 <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_one_data_2)
+lda_model_transect <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_one_data_transect)
 
-plot(lda_model_2)
+plot(lda_model_transect)
 
-lda_model_2
+lda_model_transect
 
-pred2 <- predict(lda_model_2)
+pred_transect <- predict(lda_model_transect)
 
-pred_class2 <- pred2$class
+pred_class_transect <- pred_transect$class
 
-table(Actual = year_one_data_2$site_type, Predicted = pred_class2)
+table(Actual = year_one_data_2$site_type, Predicted = pred_class_transect)
 
-results2 <- year_one_data_2 %>%
-  mutate(predicted = pred_class2, 
+results_transect <- year_one_data_transect %>%
+  mutate(predicted = pred_class_transect, 
          match = site_type == predicted)
 
 
-mismatches2 <- results2 %>% filter(!match)
+mismatches_transect <- results_transect %>% filter(!match)
 
+mismatches_transect
 
-
-results2 <- results2 %>%
+results_transect <- results_transect %>%
   dplyr::select(year, site, zone, site_type, predicted, match, everything())
 
-results2
+results_transect
 
-pred2 <- predict(lda_model_2)
-table(Predicted = pred2$class, Actual = year_one_data_2$site_type)
-mean(pred2$class == year_one_data_2$site_type)
+mean(pred_transect$class == year_one_data_transect$site_type)
 ```
 
 
-#Bar Graphs
-##kelps
+##Bar Graphs
+###kelps
 ```{r}
 density_kelp_vars <- c(
   "macro_stipe_density_",
-  "densityptecal",
-  "densitynerlue", 
-  "densitylamset", 
+  "density_ptecal",
+  "density_nerlue", 
+  "density_lamset", 
   "lamr_densitym2",
   "macr_densitym2",
   "macj_densitym2",
@@ -417,15 +421,15 @@ var_labels <- c(
   macr_densitym2       = "M. pyrifera (recruit)",
   
   #NEREO
-  densitynerlue        = "N. luetkeana (adult)", 
+  density_nerlue        = "N. luetkeana (adult)", 
   nerj_densitym2       = "N. luetkeana (juvenile)",
   
   #PTECAL
-  densityptecal        = "P. californicus (adult)",
+  density_ptecal        = "P. californicus (adult)",
   ptej_densitym2       = "P. californicus (juvenile)",
   
   #LSETJ
-  densitylamset        = "L. setchellii (adult)",
+  density_lamset        = "L. setchellii (adult)",
   lsetj_densitym2      = "L. setchellii (juvenile)",
   
   lamr_densitym2       = "Laminaria (recruit)"
@@ -493,7 +497,7 @@ ggplot(plot_kelp_data, aes(x = variable_label, y = mean_density, fill = site_typ
 ```
 
 
-##urchins
+###urchins
 ```{r}
 density_urchin_vars <- c(
   "purple_urchin_densitym2",
@@ -546,7 +550,114 @@ ggplot(plot_urchin_data, aes(x = variable_label, y = mean_density, fill = site_t
   )
 ```
 
+#2025 data
+```{r}
+year_two_data <- merged_data %>% 
+  filter(year == 2025) %>%
+  filter() %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
 
+year_two_data[sapply(year_two_data, is.numeric)] <-
+  lapply(year_two_data[sapply(year_two_data, is.numeric)],
+         function(x) { x[is.na(x)] <- 0; x })
+
+year_two_data %>%
+  group_by(site, site_type, zone, year) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+  
+
+print(year_two_data)
+```
+##LDA 
+```{r}
+library(MASS)
+
+year_two_data$site_type <- as.factor(year_two_data$site_type)
+  
+# Identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(year_two_data), value = TRUE)
+
+# Divide those columns by 20
+year_two_data[cols_to_scale] <- lapply(year_two_data[cols_to_scale], function(x) x / 20)
+
+# 3. Rename those columns by removing "20m2_"
+names(year_two_data)[names(year_two_data) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+lda_model_2025 <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_two_data)
+
+
+#lda figure
+plot(lda_model_2025)
+
+#lda summary
+lda_model_2025
+
+
+#getting predictions etc etc 
+pred25 <- predict(lda_model_2025)
+
+pred25_class <- pred25$class
+
+
+#accuracy of lda model
+mean(pred25_class == year_two_data$site_type)
+
+#confusion matrix
+library(caret)
+confusionMatrix(pred25_class, year_two_data$site_type)
+
+######RESULTS: all site types predicted correctly, model has 100% accuracy, p-value is significant
+
+
+```
+
+
+##LDA at transect level 
+```{r}
+year_two_data_transect <- merged_data_2 %>% 
+  filter(year == 2024) %>%
+  filter() %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
+
+year_two_data_transect[sapply(year_two_data_transect, is.numeric)] <-
+  lapply(year_two_data_transect[sapply(year_two_data_transect, is.numeric)],
+         function(x) { x[is.na(x)] <- 0; x })
+
+year_two_data_transect %>%
+  group_by(site, site_type, zone, year, transect) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+```
+
+###running the new LDA
+```{r}
+year_two_data_transect$site_type <- as.factor(year_two_data_transect$site_type)
+  
+# Identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(year_two_data_transect), value = TRUE)
+
+# Divide those columns by 20
+year_two_data_transect[cols_to_scale] <- lapply(year_two_data_transect[cols_to_scale], function(x) x / 20)
+
+# 3. Rename those columns by removing "20m2_"
+names(year_two_data_transect)[names(year_two_data_transect) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+lda_model_transect_2025 <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_two_data_transect)
+
+plot(lda_model_transect_2025)
+
+lda_model_transect_2025
+
+pred_transect_2025 <- predict(lda_model_transect_2025)
+
+pred_transect_2025 <- pred_transect_2025$class
+
+table(Actual = year_two_data_transect$site_type, Predicted = pred_transect_2025)
+
+
+confusionMatrix(pred_transect_2025, year_two_data_transect$site_type)
+```
 
 #Tornado Plots
 ##BAR Deep
