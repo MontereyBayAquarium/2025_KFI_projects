@@ -1,11 +1,4 @@
-<<<<<<< HEAD
 # Keenan's Script
-=======
-##Keenan's Script
-
-
-  
-
 
 rm(list=ls())
 
@@ -14,6 +7,8 @@ rm(list=ls())
 
 require(librarian)
 librarian::shelf(tidyverse,ggplot2, janitor, readxl, googlesheets4)
+
+gs4_auth()
 
 derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
                        sheet = 4) %>% clean_names()
@@ -66,15 +61,12 @@ p <- ggplot(diet_overall) +
 
 
 # Export
-ggsave(
-  filename = here::here("~", "Downloads", "diet_composition_plot.png"),
-  plot = p,  
-  width = 6,
-  height = 2,
-  dpi = 600,
-  bg = "white"
-)
+# ggsave(
+  # filename = here::here("~", "Downloads", "diet_composition_plot.png"),
+  # plot = p,  
+  # width = 6,
+  # height = 2,
+  # dpi = 600,
+  # bg = "white"
+  # )
 
-
-
->>>>>>> 49a536edf86bfca2fef474eca6c995a069240ac7
