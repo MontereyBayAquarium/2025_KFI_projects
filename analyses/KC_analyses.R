@@ -59,7 +59,6 @@ p <- ggplot(diet_overall) +
 
 
 
-
 # Export
 # ggsave(
   # filename = here::here("~", "Downloads", "diet_composition_plot.png"),
