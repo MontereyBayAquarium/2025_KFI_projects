@@ -176,9 +176,6 @@ ggplot(recruit_sum, aes(x = mean_urch_den, y = total_recruit)) +
 
 
 
-
-
-
 # OLD PROJECT
 
 # Step 1: Make groupings to prep for normalizing data
