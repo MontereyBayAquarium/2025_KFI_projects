@@ -25,7 +25,10 @@ recruit_sum <- # created new data frame to total recruits and juveniles + propor
   mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>%
   mutate(total_recruit = lamr_densitym2 + macr_densitym2 + macj_densitym2 + ptej_densitym2 + 
            nerj_densitym2 + lsetj_densitym2 + eisj_densitym2) %>%
-  group_by(year, site, site_type, zone, transect)
+  group_by(year, site, site_type, zone, transect) %>%
+  summarise(total_recruit = sum(total_recruit, na.rm = TRUE), 
+            prop_exp = sum(prop_exp, na.rm = TRUE),
+            mean_urch_den = mean(purple_urchin_densitym2, na.rm = TRUE))
 
 quad_sum <- # created new data frame with mean urch + purps exposed and combined macro data
   quad_data %>% 
@@ -59,7 +62,7 @@ ggplot(recruit_sum %>% filter(purple_urchin_densitym2 < 100),
   theme_minimal()
 
 ggplot(recruit_sum, 
-       aes(x = purple_urchin_densitym2, y = total_recruit)) +
+       aes(x = mean_urch_den, y = total_recruit)) +
   geom_point() +
   stat_smooth(method = "nls",   
               formula = y ~ a * exp(-b * x),
@@ -139,40 +142,44 @@ ggplot(recruit_data_log, aes(x = logUrch, y = logRecruit)) +
 
 
 
-### Trying nlsM
-
-# Filter data 
-recruit_sum_filtered <- recruit_sum %>% 
-  filter(purple_urchin_densitym2 < 100)
+## Trying to fit nls () 
 
 # Fit negative exponential model
-nls_fit <- nlsLM( 
-  total_recruit ~ a * exp(-b * purple_urchin_densitym2),
-  data = recruit_sum_filtered,
-  start = list(a = max(recruit_sum_filtered$total_recruit), b = 0.05)
-)
 
-# Add predicted values
-recruit_sum_pred <- recruit_sum_filtered %>%
-  ungroup() %>%
-  mutate(pred = predict(nls_fit, newdata = .))
+exp_model <- nls(total_recruit ~ a * exp(-b * mean_urch_den),
+                 data = recruit_sum,
+                 start = list(a = max(recruit_sum$total_recruit, na.rm = TRUE), 
+                              b = 0.1))
+
+summary(exp_model)
+
+# Create prediction data across the observed urchin density
+
+newdata <- data.frame(mean_urch_den = seq(min(recruit_sum$mean_urch_den, na.rm = TRUE),
+                                                    max(recruit_sum$mean_urch_den, na.rm = TRUE),
+                                                    length.out = 200))
 
 
-ggplot(recruit_sum_pred, aes(x = purple_urchin_densitym2, y = total_recruit)) +
+newdata$pred <- predict(exp_model, newdata)
+
+# Plot -> looks the same as other ggplot :( 
+
+ggplot(recruit_sum, aes(x = mean_urch_den, y = total_recruit)) +
   geom_point() +
-  geom_line(aes(y = pred), color = "blue", size = 1) +
-  theme_minimal() +
-  labs(
-    x = "Purple Urchin Density (per m²)",
-    y = "Total Recruits",
-    title = "Negative Exponential Fit of Recruit Data"
-  )
+  geom_line(data = newdata, aes(x = mean_urch_den, y = pred),
+            color = "red", size = 1) +
+  theme_minimal()
 
 
 
 
 
 
+
+
+
+
+# OLD PROJECT
 
 # Step 1: Make groupings to prep for normalizing data
 
