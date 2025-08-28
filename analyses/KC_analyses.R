@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Keenan's Script
 
 rm(list=ls())
@@ -69,3 +70,6 @@ p <- ggplot(diet_overall) +
   # bg = "white"
   # )
 
+=======
+##Keenan's Script
+>>>>>>> 88dc2b9b3ffc7afbb74cddbe3236e2ed74c5e430
