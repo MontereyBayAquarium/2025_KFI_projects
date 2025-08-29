@@ -71,7 +71,8 @@ quad_sum <- # created new data frame with mean urch + purps exposed and combined
 
 ###############################################################################
 
-  
+# PLOTS
+
 # 1. Number of Kelp Stipes vs Mean Urchin Density
 
 ggplot(quad_sum, aes(x = mean_urch_den, y = macro_stipe_density_20m2)) +
