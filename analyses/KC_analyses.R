@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# Keenan's Script
+#Keenan's Script
 
 rm(list=ls())
 
@@ -7,18 +6,34 @@ rm(list=ls())
 #Load packages, data, set dir
 
 require(librarian)
-librarian::shelf(tidyverse,ggplot2, janitor, readxl, googlesheets4)
+librarian::shelf(tidyverse, ggplot2, janitor, readxl, googlesheets4)
 
 gs4_auth()
 
 derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
                        sheet = 4) %>% clean_names()
 
+margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1LB_ze2e68ZI7by8-uT1JNsLxEcNZBZF6jEuoWI1xLIU/edit?gid=1363312898#gid=1363312898", 
+                              sheet = 5) %>% clean_names()
+
 ################################################################################
 #Load packages, data, set dir
 
 # Step 1: prep data
-diet_overall <- derm_raw %>%
+diet_overall <- derm_merge %>%
+  filter(!is.na(diet), diet != "None") %>%
+  count(diet) %>%
+  arrange(desc(n)) %>%
+  mutate(
+    diet = factor(diet, levels = diet),        # preserve order
+    prop = n / sum(n),
+    xmin = lag(cumsum(prop), default = 0),
+    xmax = cumsum(prop),
+    xmid = (xmin + xmax) / 2                   # center label
+  )
+
+# Margin diet
+margin_diet_overall <- margin_derm_raw %>%
   filter(!is.na(diet), diet != "None") %>%
   count(diet) %>%
   arrange(desc(n)) %>%
@@ -31,7 +46,17 @@ diet_overall <- derm_raw %>%
   )
 
 ################################################################################
-#Plot size fq
+#merge data
+derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
+
+derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
+
+derm_merge <- rbind(derm_recovery, derm_margin) %>%
+  mutate(urchin_size = ifelse(urchin_size =="NA", NA,urchin_size),
+         urchin_size = ifelse(urchin_size == "NULL",NA, urchin_size))
+
+################################################################################
+#Plot size frequency
 
 p <- ggplot(diet_overall) +
   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = diet), color = "white") +
@@ -55,21 +80,25 @@ p <- ggplot(diet_overall) +
     panel.grid = element_blank(),
     plot.title = element_text(size=10),
     legend.text = element_text(size=7)
-    
   )
 
+p
+
+################################################################################
+# Star size frequency histogram 
+ggplot(data = derm_merge, aes(x = size)) + 
+  geom_histogram(binwidth = 1, color = "white", fill = "blue") +
+  labs(x = 'star_size_cm', y = 'star_count')
 
 
-# Export
+
+################################################################################
+#Export
 # ggsave(
-  # filename = here::here("~", "Downloads", "diet_composition_plot.png"),
-  # plot = p,  
-  # width = 6,
-  # height = 2,
-  # dpi = 600,
-  # bg = "white"
-  # )
-
-=======
-##Keenan's Script
->>>>>>> 88dc2b9b3ffc7afbb74cddbe3236e2ed74c5e430
+#  filename = here::here("~", "Downloads", "diet_composition_plot.png"),
+#  plot = p,  
+#  width = 6,
+#  height = 2,
+#  dpi = 600,
+#  bg = "white"
+#  )
