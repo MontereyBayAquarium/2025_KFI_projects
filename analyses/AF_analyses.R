@@ -1,30 +1,59 @@
 # Aimee's script 
 
 install.packages("librarian")
-librarian::shelf("tidyverse", "vegan", "ggplot2, dplyr", "car", "ggpubr", "minpack.lm")
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive")
+
+install.packages("googledrive")
+library(googledrive)
+
 
 # Load data
 
-setwd("~/Desktop/MBA_code_repository/2025_KFI_projects/output/processed")
+drive_deauth()
 
-df <- load("cleaned_survey_data.Rda")
+drive_auth(scopes = "https://www.googleapis.com/auth/drive")
 
+file <- drive_find("kelp_recovery_data.rda",
+                   shared_drive = "MBA_kelp_recovery_research")
+
+file
+
+tmp <- tempfile(fileext = ".rda")
+drive_download(as_id("1aYx6OzGgcI7llw3C69TQYNNLkoFZnj_i"), 
+               path = tmp, 
+               overwrite = TRUE)
+
+file.exists(tmp)
+
+objs <- load(tmp)
+
+print(objs)
+
+
+
+# setwd("~/Desktop/MBA_code_repository/2025_KFI_projects/output/processed")
+
+# df <- load("cleaned_survey_data.Rda")
+
+##############################################################################
 
 # KELP vs URCHINS
 
-View(macro_data)
+
+View(kelp_data)
 
 # 1. Create new data frames
 
-macro_data <- macro_data %>% # create new column for year
+kelp_data <- kelp_data %>% # create new column for year in kelp_data
   mutate(year = year(survey_date))
 
+quad_data <- quad_data %>% # create new column for year in quad_data
+  mutate(year = year(survey_date))
 
 recruit_sum <- # created new data frame to total recruits and juveniles + proportion of purps exposed
   quad_data %>% 
   mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>%
-  mutate(total_recruit = lamr_densitym2 + macr_densitym2 + macj_densitym2 + ptej_densitym2 + 
-           nerj_densitym2 + lsetj_densitym2 + eisj_densitym2) %>%
+  mutate(total_recruit = lamr + macr + macj + nerj + ptej + lsetj + eisj) %>%
   group_by(year, site, site_type, zone, transect) %>%
   summarise(total_recruit = sum(total_recruit, na.rm = TRUE), 
             prop_exp = sum(prop_exp, na.rm = TRUE),
@@ -37,7 +66,11 @@ quad_sum <- # created new data frame with mean urch + purps exposed and combined
   summarise(mean_urch_den = mean(purple_urchin_densitym2, na.rm = TRUE), # find means
             mean_urch_concealed = mean(purple_urchin_conceiledm2, na.rm = TRUE),
             mean_urch_prop = mean(prop_exp, na.rm = TRUE)) %>%
-  left_join(.,macro_data, by = c("year", "site", "site_type", "zone", "transect")) # join macro_data to quad_data
+  left_join(.,kelp_data, by = c("year", "site", "site_type", "zone", "transect")) # join kelp_data to quad_data
+
+
+###############################################################################
+
   
 # 1. Number of Kelp Stipes vs Mean Urchin Density
 
