@@ -113,6 +113,17 @@ ggplot(subset(derm_merge, !(diet %in% c("None", "Other"))),
   theme_minimal()
 
 ################################################################################
+# Stacked bar with "Other" and "None"
+
+derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+
+ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) + 
+  geom_bar(stat = "identity", position = "fill") + 
+  labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
+  scale_fill_brewer(palette = "Set2") + 
+  theme_minimal()
+
+################################################################################
 # Scatter plot -> star size vs. urchin size
 
 
