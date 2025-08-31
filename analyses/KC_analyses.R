@@ -1,9 +1,9 @@
-#Keenan's Script
+# Keenan's script
 
 rm(list=ls())
 
 ################################################################################
-#Load packages, data, set dir
+# Load packages, data, set dir
 
 require(librarian)
 librarian::shelf(tidyverse, ggplot2, janitor, readxl, googlesheets4)
@@ -17,9 +17,10 @@ margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1LB_ze2e68
                               sheet = 5) %>% clean_names()
 
 ################################################################################
-#Load packages, data, set dir
+# Load packages, data, set dir
 
-# Step 1: prep data
+# Prep data
+
 diet_overall <- derm_merge %>%
   filter(!is.na(diet), diet != "None") %>%
   count(diet) %>%
@@ -33,6 +34,7 @@ diet_overall <- derm_merge %>%
   )
 
 # Margin diet
+
 margin_diet_overall <- margin_derm_raw %>%
   filter(!is.na(diet), diet != "None") %>%
   count(diet) %>%
@@ -46,7 +48,7 @@ margin_diet_overall <- margin_derm_raw %>%
   )
 
 ################################################################################
-#merge data
+# Merge data
 
 derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
 
@@ -57,7 +59,7 @@ derm_merge <- rbind(derm_recovery, derm_margin) %>%
          urchin_size = ifelse(urchin_size == "NULL",NA, urchin_size))
 
 ################################################################################
-#Plot size frequency
+# Plot size frequency
 
 p <- ggplot(diet_overall) +
   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = diet), color = "white") +
@@ -86,14 +88,37 @@ p <- ggplot(diet_overall) +
 p
 
 ################################################################################
-# Star size frequency histogram 
+# Star size frequency histogram
 
-ggplot(data = derm_merge, aes(x = size)) + 
-  geom_histogram(binwidth = 1, color = "white", fill = "blue") +
-  labs(x = 'star_size_cm', y = 'star_count')
+ggplot(data = derm_merge, aes(x = size, weight = count)) + 
+  geom_histogram(binwidth = 1, color = "white", fill = "steelblue") +
+  labs(x = 'star_size_cm', y = 'star_count') + 
+  theme_minimal()
 
 ################################################################################
-#Export
+# Overlayed histogram -> total star size fq vs. urchin eaters
+
+
+
+################################################################################
+# Stacked bar -> shows how diet varies with star size
+
+derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+
+ggplot(subset(derm_merge, !(diet %in% c("None", "Other"))), 
+  aes(x = size_bin, y = count, fill = diet)) + 
+  geom_bar(stat = "identity", position = "fill") + 
+  labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
+  scale_fill_brewer(palette = "Set2") + 
+  theme_minimal()
+
+################################################################################
+# Scatter plot -> star size vs. urchin size
+
+
+
+################################################################################
+# Export
 
 # ggsave(
 #  filename = here::here("~", "Downloads", "diet_composition_plot.png"),
@@ -103,3 +128,5 @@ ggplot(data = derm_merge, aes(x = size)) +
 #  dpi = 600,
 #  bg = "white"
 #  )
+
+################################################################################
