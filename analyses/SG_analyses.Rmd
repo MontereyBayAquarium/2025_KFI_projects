@@ -9,37 +9,34 @@ output: html_document
 ```{r setup, include=FALSE}
 
 knitr::opts_chunk$set(echo = TRUE)
-library(tidyverse)
-library(ggplot2)
-library(stats)
-library(dplyr)
-library(janitor)
-library(nlme)
-library(RColorBrewer)
-library(egg)
-library(vegan)
-library(librarian)
-library(splitstackshape)
-library(lubridate)
-library(matrixStats)
-library(BiodiversityR)
-library(ggforce)
-library(concaveman)
-library(ggrepel)
-library(ggsci)
-library(pvclust)
-library(googlesheets4)
-library(stringr)
-library(readr)
+
+# packages
+install.packages("librarian")
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr")
+
+library(googledrive)
 
 ```
-
+#loading data
 ```{r}
-rm(list=ls())
-require(tidyverse)  
-require(here)
 
-load(here::here("output","processed", "cleaned_survey_data.Rda")) 
+# load data
+drive_deauth()
+
+drive_auth(scopes = "https://www.googleapis.com/auth/drive")
+
+file <- drive_find("kelp_recovery_data.rda",
+                   shared_drive = "MBA_kelp_recovery_research")
+file
+
+drive_download(
+  as_id(file$id),
+  path = "kelp_recovery_data.rda",
+  overwrite = TRUE
+)
+
+load("kelp_recovery_data.rda")
+ls()
 ```
 
 
@@ -116,7 +113,7 @@ merged_data <- kelp_avgs %>%
 merged_data$year <- as.numeric(format(merged_data$survey_date, "%Y"))
   
 
-print(merged_data)
+view(merged_data)
 ```
 
 #2024 data 
@@ -126,7 +123,7 @@ print(merged_data)
 year_one_data <- merged_data %>% 
   filter(year == 2024) %>%
   filter() %>%
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything())
 
 year_one_data[sapply(year_one_data, is.numeric)] <-
   lapply(year_one_data[sapply(year_one_data, is.numeric)],
@@ -155,8 +152,7 @@ year_one_data[cols_to_scale] <- lapply(year_one_data[cols_to_scale], function(x)
 names(year_one_data)[names(year_one_data) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp+ cov_lam_holdfast_live + cov_mac_holdfast_live, data = year_one_data)
-
+lda_model <- lda(site_type ~ macro_stipe_density_.x + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
 
 
 #lda figure
@@ -165,16 +161,20 @@ plot(lda_model)
 #lda summary
 lda_model
 
-
 #getting predictions etc etc 
 pred <- predict(lda_model)
 
 pred_class <- pred$class
 
+#ACCURACY = 85.42
+library(caret)
+confusionMatrix(pred_class, year_one_data$site_type)
+
 results <- year_one_data %>%
   mutate(predicted = pred_class, 
          match = site_type == predicted)
 
+#seeing mismatches 
 results <- results %>%
   dplyr::select(year, site, zone, site_type, predicted, match, everything())
 
@@ -184,12 +184,10 @@ mismatches
 
 results 
 
-#ACCURACY = 93.55%
-library(caret)
-confusionMatrix(pred_class, year_one_data$site_type)
-
 
 ```
+
+
 ###coefficients of LDA
 ```{r}
 library(tidyr)
@@ -215,36 +213,25 @@ ggplot(coef_long, aes(x = reorder(variable, coefficient), y = coefficient, fill 
 
 #FIG 1: LDA of 2024 Patch Discrimination
 ```{r}
+library(ggplot2)
+library(dplyr)
+library(MASS)
+library(grid)  # for arrows
 
-# Get LDA scores
-lda_scores <- as.data.frame(predict(lda_model)$x)
-lda_scores$site_type <- year_one_data$site_type
+# Get LDA scores 
 
-# Plot LD1 vs LD2
+lda_scores <- as.data.frame(predict(lda_model)$x) 
+lda_scores$site_type <- year_one_data$site_type 
 
-ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) +
-  geom_point(size = 3.5, alpha = 0.9) +
-  stat_ellipse(level = 0.95, size = 1, alpha = 0.6) +
-  scale_color_brewer(palette = "Set1") +
-  theme_minimal(base_size = 16) +
-  labs(
-    title = "Linear Discriminant Analysis",
-    subtitle = "95% confidence ellipses by site type",
-    x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2) * 100, 1), "%)"),
-    y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2) * 100, 1), "%)"),
-    color = "Site Type",
-    shape = "Site Type"
-  ) +
-  theme(
-    plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)),
-    plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)),
-    axis.title = element_text(face = "bold", size = 15),
-    axis.text = element_text(size = 13),
-    legend.title = element_text(face = "bold", size = 14),
-    legend.text = element_text(size = 12),
-    panel.grid.minor = element_blank(),
-    panel.grid.major = element_line(color = "grey85", linewidth = 0.3)
-  )
+# Plot LD1 vs LD2 
+
+ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) + geom_point(size = 3.5, alpha = 0.9) + 
+  stat_ellipse(level = 0.95, size = 1, alpha = 0.6) + 
+  scale_color_brewer(palette = "Set1") + 
+  theme_minimal(base_size = 16) + 
+  labs( title = "Linear Discriminant Analysis", subtitle = "95% confidence ellipses by site type", x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), color = "Site Type", shape = "Site Type" ) + 
+  theme( plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)), plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)), axis.title = element_text(face = "bold", size = 15), axis.text = element_text(size = 13), legend.title = element_text(face = "bold", size = 14), legend.text = element_text(size = 12), panel.grid.minor = element_blank(), panel.grid.major = element_line(color = "grey85", linewidth = 0.3) )
+
 
 ```
 
@@ -257,7 +244,7 @@ ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) 
 year_two_data <- merged_data %>% 
   filter(year == 2025) %>%
   filter() %>%
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything())
 
   
 # Identify columns that contain "20m2"
@@ -332,10 +319,10 @@ merged <- year_one_data %>%
     by = c("site", "zone", "site_type")
   )
 
-
+view(merged)
 cross_tab <- table(merged$site_type_pred_2024, merged$site_type_pred_2025)
 
-
+cross_tab
 ```
 
 #FIG 2: Heatmap of Predicted Patch Transitions
@@ -355,19 +342,20 @@ desired_order_2025 <- c("BAR", "INCIP", "FOR")
 cross_tab_melt$Var1 <- factor(cross_tab_melt$Var1, levels = desired_order_2024)
 cross_tab_melt$Var2 <- factor(cross_tab_melt$Var2, levels = desired_order_2025)
 
-  
+my_colors <- rev(brewer.pal(11, "RdYlBu"))
 
 # Sleek publication-ready heatmap
 ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
-  geom_tile(color = "grey90", linewidth  = 0.3) +  # subtle grid lines
+  geom_tile(color = "grey90", linewidth = 0.3) +
   geom_text(aes(label = value), 
             color = ifelse(cross_tab_melt$value > max(cross_tab_melt$value)/2, "white", "black"), 
-            size = 5, fontface = "bold") +   # dynamic label color
-scale_fill_manual(values="#ffffcc","#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "#253494")+
+            size = 5, fontface = "bold") +
+ scale_fill_gradientn(colors = my_colors) +
   labs(
-    x = "2024",
-    y = "2025",
-    title = "Transition of Predicted Patch Types from 2024 to 2025"
+    x = "2024 Predicted Patch Type",
+    y = "2025 Predicted Patch Type",
+    title = "Transition of Predicted Patch Types from 2024 to 2025",
+    fill = "Count"
   ) +
   theme_minimal(base_size = 15) +
   theme(
@@ -377,9 +365,8 @@ scale_fill_manual(values="#ffffcc","#c7e9b4", "#7fcdbb", "#41b6c4", "#2c7fb8", "
     plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
     legend.title = element_text(face = "bold", size = 13),
     legend.text = element_text(size = 12),
-    panel.grid = element_blank()  # remove minor grid for sleek look
+    panel.grid = element_blank()
   )
-
 
 
 ```
@@ -422,236 +409,504 @@ ggplot(cross_tab_zone, aes(x = site_type_pred_2024, y = site_type_pred_2025, fil
 
 ```
 
-#FIG 3: Tornado Plot of Predominant Coefficients 2024 vs. 2025
+#FIG 3: Boxplots representing change in functional groups across patch transitions 
 ###Creating the df I'll need 
 ```{r}
+library(dplyr)
+library(tidyr)
+
 merged_clean_data <- merged_data %>% 
-  filter() %>%
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
-
-#getting rid of NAs
-merged_clean_data[sapply(merged_clean_data, is.numeric)] <-
-  lapply(merged_clean_data[sapply(merged_clean_data, is.numeric)],
-         function(x) { x[is.na(x)] <- 0; x })
-
-#grouping by zone
-merged_clean_data %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything()) %>%
+  mutate(across(where(is.numeric), ~ replace_na(., 0))) %>%   # replace NAs with 0
   group_by(site, site_type, zone, year) %>%
-  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop") 
+  summarise(across(where(is.numeric), mean), .groups = "drop") %>%
+  mutate(site_type = as.factor(site_type))
 
-merged_clean_data$site_type <- as.factor(merged_clean_data$site_type)
-  
-# Identify columns that contain "20m2"
+# scale 20m2 cols to per-m²
 cols_to_scale <- grep("20m2", names(merged_clean_data), value = TRUE)
-
-# Divide those columns by 20
 merged_clean_data[cols_to_scale] <- lapply(merged_clean_data[cols_to_scale], function(x) x / 20)
 
-# 3. Rename those columns by removing "20m2_"
-names(merged_clean_data)[names(merged_clean_data) %in% cols_to_scale] <-
-  gsub("20m2","", cols_to_scale)
+# rename columns (remove "20m2")
+names(merged_clean_data) <- gsub("20m2", "", names(merged_clean_data))
 
+
+###including the predicted patch definitons to the df
+
+#Create unique patch ID using site, predicted 2024 type, and zone
+merged <- merged %>%
+  mutate(
+    patch_id = paste(site, site_type_pred_2024, zone, sep = "_"),
+    pred_patch_2024 = site_type_pred_2024,
+    pred_patch_2025 = site_type_pred_2025
+  ) 
+
+#creating df that has abundances and patch transitions
+pred_patch_data <- merged_clean_data %>%
+  left_join(
+    merged %>%
+      dplyr::select(site, zone, site_type, pred_patch_2024, pred_patch_2025),  # match original site_type
+    by = c("site", "zone", "site_type")
+  ) %>%
+  dplyr::select(pred_patch_2024, pred_patch_2025, everything(), -site_type) #move to front and remove original site_type
+
+view(pred_patch_data)
+
+####creating new df with patch transitions
+library(vegan)
+library(dplyr)
+
+#adding transition column 
+patch_trans_data <- pred_patch_data %>%
+  mutate(patch_transition = paste(pred_patch_2024, "→", pred_patch_2025)) %>%
+  dplyr::select(patch_transition, pred_patch_2024, pred_patch_2025, everything(), -latitude, -longitude)
+
+view(patch_trans_data)
 
 ```
-## BAR -> INCIP
-
-### Patch 1: REC_02 Shallow
+# BAR -> INCIP
 ```{r}
-rec_2_s <- merged_clean_data %>%
-  dplyr::filter(site == "REC_02", 
-                zone == "Shallow", 
-                site_type == "BAR") %>%
-  group_by(year, site, site_type, zone) %>%
-  summarise(across(c(
-    macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, 
-    density_eisarb, 
-    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
-    ptej_densitym2, lsetj_densitym2
-  ), mean, na.rm = TRUE), .groups = "drop")
+# Barren → Incipient
+bar_incip <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ INCIP"))
+print(bar_incip)
 
-#  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
- # purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)",
+```
+###Figures
+```{r}
+#creating functional groups
 
-var_labels <- c(
-  lamr_densitym2 = "Laminaria (recruit)",
-  macr_densitym2 = "M. pyrifera (recruit)",
-  nerj_densitym2 = "N. luetkeana (juvenile)",
-  macj_densitym2 = "M. pyrifera (juvenile)",
-  ptej_densitym2 = "P. californicus (juvenile)",
-  lsetj_densitym2 = "L. setchellii (juvenile)",
-  macro_stipe_density_ = "M. pyrifera (adult)" ,
-             density_ptecal = "P. californicus (adult)",
-             density_nerlue = "N. luetkeana (adult)",
-             density_lamset = "L. setchellii (adult)",
-             density_eisarb = "E. arborea (adult)"
-)
-
-rec_2_s_long <- rec_2_s %>%
-  pivot_longer(cols = all_of(names(var_labels)), 
-               names_to = "variable", values_to = "value") %>%
-  mutate(value_signed = ifelse(year == 2024, -value, value))
-
-# Plot tornado
-ggplot(rec_2_s_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
-  geom_col(width = 0.7, color = "gray20") +
-  coord_flip() +
-  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
-  scale_x_discrete(labels = var_labels) +
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
-  labs(
-    title = "REC 02 Shallow",
-    subtitle = "BAR (2024) -> INCIP (2025)",
-    x = NULL,
-    y = "Mean Density (per m²)",
-    fill = "Year"
-  ) +
-  theme_minimal(base_size = 14) +
-  theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
-    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
-    axis.text = element_text(color = "black"),
-    legend.position = "top",
-    panel.grid.major.y = element_blank()
+functional_groups <- bar_incip %>%
+  group_by(patch_transition, site, zone, year) %>%
+  summarise(
+    first_stage = sum(cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red, na.rm = TRUE), 
+    second_stage = sum(cov_fleshy_red + cov_dictyota_dictyopteris + cov_desmarestia_spp + cov_dictyoneurum_spp, na.rm = TRUE), 
+    understory_recruits_juvs = sum(lamr_densitym2 + ptej_densitym2 + lsetj_densitym2, na.rm = TRUE),
+    understory_adults = sum(density_ptecal + density_eisarb + density_lamset, na.rm = TRUE), 
+    canopy_recruits_juv = sum(macr_densitym2 + macj_densitym2 + nerj_densitym2, na.rm = TRUE), 
+    canopy_adults = sum(macro_stipe_density_.x + density_nerlue, na.rm = TRUE),
+    purple_urchins = sum(purple_urchin_densitym2, na.rm = TRUE),
+    purple_urchin_conceiled = sum(purple_urchin_conceiledm2, na.rm = TRUE),
+    .groups = "drop"
   )
 
+
+#aggregating functional groups 
+functional_groups_agg <- functional_groups %>%
+  mutate(across(c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
+                  canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
+                ~ (.-mean(.))/sd(.)))
+
+#pivoting longer
+data_long <- functional_groups_agg %>%
+  pivot_longer(
+    cols = c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
+             canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
+    names_to = "functional_group",
+    values_to = "value"
+  )
+
+#turning functional groups into factors
+data_long <- data_long %>%
+  mutate(functional_group = factor(functional_group, 
+                                   levels = c("first_stage", "second_stage", 
+                                              "understory_recruits_juvs", "understory_adults", 
+                                              "canopy_recruits_juv", "canopy_adults", 
+                                              "purple_urchins", "purple_urchin_conceiled")))
+
+
+# Define stages for shaded backgrounds
+stages <- data.frame(
+  start = c(0.5, 2.5, 4.5, 6.5),
+  end   = c(2.5, 4.5, 6.5, 8.5),
+  stage = c("Early", "Understory", "Canopy", "Urchins")
+)
+
+
+# BOX PLOT WITH ALL FUNCTIONAL GROUPS
+ggplot(data_long, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95", "gray97", "gray95", "gray97"), alpha = 0.4) +
   
-  #just doing density right now because not sure how to standardize with cover data 
-
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
   
-         
-```
-#### stats
-```{r}
-
-```
-
-##Patch 2: REC_04 Deep
-```{r}
-rec_4_d <- merged_clean_data %>%
-  dplyr::filter(site == "REC_04", 
-                zone == "Deep", 
-                site_type == "BAR") %>%
-  group_by(year, site, site_type, zone) %>%
-  summarise(across(c(
-    macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, 
-    density_eisarb, 
-    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
-    ptej_densitym2, lsetj_densitym2
-  ), mean, na.rm = TRUE), .groups = "drop")
-
-#  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
- # purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)",
-
-var_labels <- c(
-  lamr_densitym2 = "Laminaria (recruit)",
-  macr_densitym2 = "M. pyrifera (recruit)",
-  nerj_densitym2 = "N. luetkeana (juvenile)",
-  macj_densitym2 = "M. pyrifera (juvenile)",
-  ptej_densitym2 = "P. californicus (juvenile)",
-  lsetj_densitym2 = "L. setchellii (juvenile)",
-  macro_stipe_density_ = "M. pyrifera (adult)" ,
-             density_ptecal = "P. californicus (adult)",
-             density_nerlue = "N. luetkeana (adult)",
-             density_lamset = "L. setchellii (adult)",
-             density_eisarb = "E. arborea (adult)"
-)
-
-rec_4_d_long <- rec_4_d %>%
-  pivot_longer(cols = all_of(names(var_labels)), 
-               names_to = "variable", values_to = "value") %>%
-  mutate(value_signed = ifelse(year == 2024, -value, value))
-
-# Plot tornado
-ggplot(rec_2_s_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
-  geom_col(width = 0.7, color = "gray20") +
-  coord_flip() +
-  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
-  scale_x_discrete(labels = var_labels) +
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
   labs(
-    title = "REC 04 Deep",
-    subtitle = "BAR (2024) -> INCIP (2025)",
     x = NULL,
-    y = "Mean Density (per m²)",
-    fill = "Year"
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
   ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
   theme_minimal(base_size = 14) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
-    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
-    axis.text = element_text(color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
     legend.position = "top",
-    panel.grid.major.y = element_blank()
-  )
-
-```
-#### stats
-```{r}
-
-```
-
-
-## INCIP -> FOR
-### Patch 1: REC_02 Deep 
-```{r}
-rec_2_d <- merged_clean_data %>%
-  dplyr::filter(site == "REC_02", 
-                zone == "Deep", 
-                site_type == "FOR") %>%
-  group_by(year, site, site_type, zone) %>%
-  summarise(across(c(
-    macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, 
-    density_eisarb, 
-    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
-    ptej_densitym2, lsetj_densitym2, purple_urchin_densitym2, purple_urchin_conceiledm2
-  ), mean, na.rm = TRUE), .groups = "drop")
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5, 3.5, 5.5, 7.5), y = max(data_long$value) + 0.5,
+           label = stages$stage, fontface = "bold", size = 4)
 
 
-var_labels <- c(
-  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
- purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)",
-  lamr_densitym2 = "Laminaria (recruit)",
-  macr_densitym2 = "M. pyrifera (recruit)",
-  nerj_densitym2 = "N. luetkeana (juvenile)",
-  macj_densitym2 = "M. pyrifera (juvenile)",
-  ptej_densitym2 = "P. californicus (juvenile)",
-  lsetj_densitym2 = "L. setchellii (juvenile)",
-  macro_stipe_density_ = "M. pyrifera (adult)" ,
-             density_ptecal = "P. californicus (adult)",
-             density_nerlue = "N. luetkeana (adult)",
-             density_lamset = "L. setchellii (adult)",
-             density_eisarb = "E. arborea (adult)"
+#JUST ALGAL GROUPS
+algal_groups <- data_long %>%
+  filter(!functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
+
+stages_algae <- data.frame(
+  start = c(0.5, 2.5, 4.5),
+  end   = c(2.5, 4.5, 6.5),
+  stage = c("Early", "Understory", "Canopy")
 )
 
-rec_2_d_long <- rec_2_d %>%
-  pivot_longer(cols = all_of(names(var_labels)), 
-               names_to = "variable", values_to = "value") %>%
-  mutate(value_signed = ifelse(year == 2024, -value, value))
 
-# Plot tornado
-ggplot(rec_2_d_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
-  geom_col(width = 0.7, color = "gray20") +
-  coord_flip() +
-  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
-  scale_x_discrete(labels = var_labels) +
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+ggplot(algal_groups, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages_algae, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95", "gray97", "gray95"), alpha = 0.4) +
+  
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
   labs(
-    title = "REC 02 Deep",
-    subtitle = "INCIP (2024) -> FOR (2025)",
     x = NULL,
-    y = "Mean Density (per m²)",
-    fill = "Year"
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
   ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
   theme_minimal(base_size = 14) +
   theme(
-    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
-    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
-    axis.text = element_text(color = "black"),
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
     legend.position = "top",
-    panel.grid.major.y = element_blank()
-  )
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5, 3.5, 5.5), y = max(data_long$value) + 0.5,
+           label = stages_algae$stage, fontface = "bold", size = 4)
+
+
+#JUST URCHIN GROUPS
+urchin_groups <- data_long %>%
+  filter(functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
+
+stages_urchin <- data.frame(
+  start = c(0.5),
+  end   = c(2.5),
+  stage = "Urchins"
+)
+
+
+ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages_urchin, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95"), alpha = 0.4) +
+  
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
+  labs(
+    x = NULL,
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
+  ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    legend.position = "top",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5), y = max(urchin_groups$value) + 0.5,
+           label = stages_urchin$stage, fontface = "bold", size = 4)
 ```
-####stats
+###Stats (ANOVA)
 ```{r}
+# Example: all functional groups
+raw_groups <- functional_groups %>%
+  dplyr::select(site, zone, year, first_stage:purple_urchin_conceiled) %>%
+  pivot_longer(cols = first_stage:purple_urchin_conceiled,
+               names_to = "functional_group",
+               values_to = "value")
 
 ```
+
+
+# INCIP -> FOR
+```{r}
+# Barren → Incipient
+incip_for <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "INCIP.*→ FOR"))
+print(incip_for)
+
+```
+###Figures
+```{r}
+#creating functional groups
+
+functional_groups_2 <- incip_for %>%
+  group_by(patch_transition, site, zone, year) %>%
+  summarise(
+    first_stage = sum(cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red, na.rm = TRUE), 
+    second_stage = sum(cov_fleshy_red + cov_dictyota_dictyopteris + cov_desmarestia_spp + cov_dictyoneurum_spp, na.rm = TRUE), 
+    understory_recruits_juvs = sum(lamr_densitym2 + ptej_densitym2 + lsetj_densitym2, na.rm = TRUE),
+    understory_adults = sum(density_ptecal + density_eisarb + density_lamset, na.rm = TRUE), 
+    canopy_recruits_juv = sum(macr_densitym2 + macj_densitym2 + nerj_densitym2, na.rm = TRUE), 
+    canopy_adults = sum(macro_stipe_density_.x + density_nerlue, na.rm = TRUE),
+    purple_urchins = sum(purple_urchin_densitym2, na.rm = TRUE),
+    purple_urchin_conceiled = sum(purple_urchin_conceiledm2, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+#aggregating functional groups 
+functional_groups_agg_2 <- functional_groups_2 %>%
+  mutate(across(c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
+                  canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
+                ~ (.-mean(.))/sd(.)))
+
+#pivoting longer
+data_long_2 <- functional_groups_agg_2 %>%
+  pivot_longer(
+    cols = c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
+             canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
+    names_to = "functional_group",
+    values_to = "value"
+  )
+
+#turning functional groups into factors
+data_long_2 <- data_long_2 %>%
+  mutate(functional_group= factor(functional_group, 
+                                   levels = c("first_stage", "second_stage", 
+                                              "understory_recruits_juvs", "understory_adults", 
+                                              "canopy_recruits_juv", "canopy_adults", 
+                                              "purple_urchins", "purple_urchin_conceiled")))
+
+
+# Define stages for shaded backgrounds
+stages_2 <- data.frame(
+  start = c(0.5, 2.5, 4.5, 6.5),
+  end   = c(2.5, 4.5, 6.5, 8.5),
+  stage = c("Early", "Understory", "Canopy", "Urchins")
+)
+
+
+# BOX PLOT WITH ALL FUNCTIONAL GROUPS
+ggplot(data_long_2, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages_2, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95", "gray97", "gray95", "gray97"), alpha = 0.4) +
+  
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
+  labs(
+    x = NULL,
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
+  ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    legend.position = "top",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5, 3.5, 5.5, 7.5), y = max(data_long$value) + 0.5,
+           label = stages_2$stage, fontface = "bold", size = 4)
+
+
+#JUST ALGAL GROUPS
+algal_groups <- data_long_2 %>%
+  filter(!functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
+
+stages_algae <- data.frame(
+  start = c(0.5, 2.5, 4.5),
+  end   = c(2.5, 4.5, 6.5),
+  stage = c("Early", "Understory", "Canopy")
+)
+
+
+ggplot(algal_groups, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages_algae, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95", "gray97", "gray95"), alpha = 0.4) +
+  
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
+  labs(
+    x = NULL,
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
+  ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    legend.position = "top",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5, 3.5, 5.5), y = max(data_long$value) + 0.5,
+           label = stages_algae$stage, fontface = "bold", size = 4)
+
+
+#JUST URCHIN GROUPS
+urchin_groups <- data_long_2 %>%
+  filter(functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
+
+stages_urchin <- data.frame(
+  start = c(0.5),
+  end   = c(2.5),
+  stage = "Urchins"
+)
+
+
+ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year))) +
+  # Shaded bands for ecological stages
+  geom_rect(data = stages_urchin, 
+            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
+            inherit.aes = FALSE,
+            fill = c("gray95"), alpha = 0.4) +
+  
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  
+  # Overlay points for transparency
+  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
+  
+  # Labels & theme
+  labs(
+    x = NULL,
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
+  ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    legend.position = "top",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  ) +
+  
+  # Optional: stage labels on top
+  annotate("text", x = c(1.5), y = max(urchin_groups$value) + 0.5,
+           label = stages_urchin$stage, fontface = "bold", size = 4)
+```
+
+
+
+#FIG 4:
+
+
+##4a: RDA for BAR -> INCIP
+```{r}
+
+# Barren → Incipient
+bar_incip <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ INCIP"))
+
+
+#isolate algal species
+algal_cols <- c(
+  "cov_articulated_coralline", "cov_crustose_coralline",
+  "cov_encrusting_red", "cov_fleshy_red", "cov_lam_holdfast_live",
+  "cov_mac_holdfast_live", "cov_dictyoneurum_spp",
+  "cov_desmarestia_spp", "cov_stephanocystis",  "macro_stipe_density_.x", "density_ptecal", "density_nerlue", "density_lamset", 
+    "density_eisarb", 
+    "lamr_densitym2", "macr_densitym2", "macj_densitym2", "nerj_densitym2", 
+    "ptej_densitym2", "lsetj_densitym2")
+
+
+#log + 1 transform 
+bar_incip_log <- bar_incip %>%
+  mutate(across(all_of(algal_cols), ~ log1p(.)))
+
+
+bar_incip_long <- bar_incip_log %>%
+  pivot_longer(
+    cols = all_of(algal_cols),
+    names_to = "species",
+    values_to = "log_cover"
+  )
+
+
+# Create matrix: rows = samples, columns = algal species
+algal_matrix <- bar_incip_log %>%
+  dplyr::select(all_of(algal_cols))
+
+# Run NMDS using Bray-Curtis distance
+set.seed(42)  # for reproducibility
+nmds <- metaMDS(algal_matrix, distance = "bray", k = 2, trymax = 100)
+
+nmds
+
+```
+#proportion conceiled and compare in 2024 patches vs 2025 transitioned 
+#proportional abundance graph of kelps to look at community composition? 
