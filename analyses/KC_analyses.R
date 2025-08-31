@@ -47,6 +47,7 @@ margin_diet_overall <- margin_derm_raw %>%
 
 ################################################################################
 #merge data
+
 derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
 
 derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
@@ -86,14 +87,14 @@ p
 
 ################################################################################
 # Star size frequency histogram 
+
 ggplot(data = derm_merge, aes(x = size)) + 
   geom_histogram(binwidth = 1, color = "white", fill = "blue") +
   labs(x = 'star_size_cm', y = 'star_count')
 
-
-
 ################################################################################
 #Export
+
 # ggsave(
 #  filename = here::here("~", "Downloads", "diet_composition_plot.png"),
 #  plot = p,  
