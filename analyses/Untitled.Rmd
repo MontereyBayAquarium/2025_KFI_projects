@@ -1,0 +1,1639 @@
+---
+title: "SG_backup"
+author: "Sabrina Grant"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+library(tidyverse)
+library(ggplot2)
+library(stats)
+library(dplyr)
+library(janitor)
+library(nlme)
+library(RColorBrewer)
+library(egg)
+library(vegan)
+library(librarian)
+library(splitstackshape)
+library(lubridate)
+library(matrixStats)
+library(BiodiversityR)
+library(ggforce)
+library(concaveman)
+library(ggrepel)
+library(ggsci)
+library(pvclust)
+library(googlesheets4)
+library(stringr)
+library(readr)
+
+### Patch 1: REC_02 Shallow
+#### Tornado Plot
+```{r}
+#without urchin density
+rec_2_s <- bar_incip %>%
+  dplyr::filter(site == "REC_02",
+                zone == "Shallow") %>%
+  group_by(pred_patch_2024, pred_patch_2025, year) %>%
+  summarise(across(c(
+    macro_stipe_density_.x, density_ptecal, density_nerlue, density_lamset, 
+    density_eisarb, 
+    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
+    ptej_densitym2, lsetj_densitym2
+  ), mean, na.rm = TRUE), .groups = "drop")
+
+var_labels <- c(
+  lamr_densitym2 = "Laminaria (recruit)",
+  macr_densitym2 = "M. pyrifera (recruit)",
+  nerj_densitym2 = "N. luetkeana (juvenile)",
+  macj_densitym2 = "M. pyrifera (juvenile)",
+  ptej_densitym2 = "P. californicus (juvenile)",
+  lsetj_densitym2 = "L. setchellii (juvenile)",
+  macro_stipe_density_.x = "M. pyrifera (adult)" ,
+             density_ptecal = "P. californicus (adult)",
+             density_nerlue = "N. luetkeana (adult)",
+             density_lamset = "L. setchellii (adult)",
+             density_eisarb = "E. arborea (adult)"
+)
+
+rec_2_s_long <- rec_2_s %>%
+  pivot_longer(cols = all_of(names(var_labels)), 
+               names_to = "variable", values_to = "value") %>%
+  mutate(value_signed = ifelse(year == 2024, -value, value))
+
+# Plot tornado
+ggplot(rec_2_s_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "REC 02 Shallow",
+    subtitle = "BAR (2024) -> INCIP (2025)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank()
+  )
+
+
+#with urchin density
+rec_2_s_urch <- bar_incip %>%
+  dplyr::filter(site == "REC_02",
+                zone == "Shallow") %>%
+  group_by(pred_patch_2024, pred_patch_2025, year) %>%
+  summarise(across(c(
+    macro_stipe_density_.x, density_ptecal, density_nerlue, density_lamset, 
+    density_eisarb, 
+    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
+    ptej_densitym2, lsetj_densitym2, purple_urchin_densitym2, purple_urchin_conceiledm2
+  )
+  , mean, na.rm = TRUE), .groups = "drop")
+
+
+var_labels_urch <- c(
+  lamr_densitym2 = "Laminaria (recruit)",
+  macr_densitym2 = "M. pyrifera (recruit)",
+  nerj_densitym2 = "N. luetkeana (juvenile)",
+  macj_densitym2 = "M. pyrifera (juvenile)",
+  ptej_densitym2 = "P. californicus (juvenile)",
+  lsetj_densitym2 = "L. setchellii (juvenile)",
+  macro_stipe_density_.x = "M. pyrifera (adult)" ,
+             density_ptecal = "P. californicus (adult)",
+             density_nerlue = "N. luetkeana (adult)",
+             density_lamset = "L. setchellii (adult)",
+             density_eisarb = "E. arborea (adult)", 
+  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
+ purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)"
+)
+
+rec_2_s_long_urch <- rec_2_s_urch %>%
+  pivot_longer(cols = all_of(names(var_labels_urch)), 
+               names_to = "variable", values_to = "value") %>%
+  mutate(value_signed = ifelse(year == 2024, -value, value))
+
+# Plot tornado
+ggplot(rec_2_s_long_urch, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels_urch) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "REC 02 Shallow",
+    subtitle = "BAR (2024) -> INCIP (2025)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank()
+  )
+  
+         
+```
+##### stats
+```{r}
+
+```
+##Patch 2: REC_02 Deep
+```{r}
+rec_2_d<- bar_incip %>%
+  dplyr::filter(site == "REC_02",
+                zone == "Deep") %>%
+  group_by(pred_patch_2024, pred_patch_2025, year) %>%
+  summarise(across(c(
+    macro_stipe_density_.x, density_ptecal, density_nerlue, density_lamset, 
+    density_eisarb, 
+    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
+    ptej_densitym2, lsetj_densitym2, purple_urchin_densitym2, purple_urchin_conceiledm2
+  ), mean, na.rm = TRUE), .groups = "drop")
+
+var_labels <- c(
+  lamr_densitym2 = "Laminaria (recruit)",
+  macr_densitym2 = "M. pyrifera (recruit)",
+  nerj_densitym2 = "N. luetkeana (juvenile)",
+  macj_densitym2 = "M. pyrifera (juvenile)",
+  ptej_densitym2 = "P. californicus (juvenile)",
+  lsetj_densitym2 = "L. setchellii (juvenile)",
+  macro_stipe_density_.x = "M. pyrifera (adult)" ,
+             density_ptecal = "P. californicus (adult)",
+             density_nerlue = "N. luetkeana (adult)",
+             density_lamset = "L. setchellii (adult)",
+             density_eisarb = "E. arborea (adult)", 
+  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
+ purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)"
+)
+
+rec_2_d_long <- rec_2_d %>%
+  pivot_longer(cols = all_of(names(var_labels)), 
+               names_to = "variable", values_to = "value") %>%
+  mutate(value_signed = ifelse(year == 2024, -value, value))
+
+# Plot tornado
+ggplot(rec_2_d_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "REC 02 Deep",
+    subtitle = "BAR (2024) -> INCIP (2025)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank()
+  )
+
+```
+#### stats
+```{r}
+
+```
+
+
+## INCIP -> FOR
+### Patch 1: REC_02 Deep 
+```{r}
+rec_2_d <- merged_clean_data %>%
+  dplyr::filter(site == "REC_02", 
+                zone == "Deep", 
+                site_type == "FOR") %>%
+  group_by(year, site, site_type, zone) %>%
+  summarise(across(c(
+    macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, 
+    density_eisarb, 
+    lamr_densitym2, macr_densitym2, macj_densitym2, nerj_densitym2, 
+    ptej_densitym2, lsetj_densitym2, purple_urchin_densitym2, purple_urchin_conceiledm2
+  ), mean, na.rm = TRUE), .groups = "drop")
+
+
+var_labels <- c(
+  purple_urchin_densitym2 = "Total Density of Purple Urchins (m²)",
+ purple_urchin_conceiledm2 = "Density of Purple Urchins Conceiled (m²)",
+  lamr_densitym2 = "Laminaria (recruit)",
+  macr_densitym2 = "M. pyrifera (recruit)",
+  nerj_densitym2 = "N. luetkeana (juvenile)",
+  macj_densitym2 = "M. pyrifera (juvenile)",
+  ptej_densitym2 = "P. californicus (juvenile)",
+  lsetj_densitym2 = "L. setchellii (juvenile)",
+  macro_stipe_density_ = "M. pyrifera (adult)" ,
+             density_ptecal = "P. californicus (adult)",
+             density_nerlue = "N. luetkeana (adult)",
+             density_lamset = "L. setchellii (adult)",
+             density_eisarb = "E. arborea (adult)"
+)
+
+rec_2_d_long <- rec_2_d %>%
+  pivot_longer(cols = all_of(names(var_labels)), 
+               names_to = "variable", values_to = "value") %>%
+  mutate(value_signed = ifelse(year == 2024, -value, value))
+
+# Plot tornado
+ggplot(rec_2_d_long, aes(x = reorder(variable, value), y = value_signed, fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "REC 02 Deep",
+    subtitle = "INCIP (2024) -> FOR (2025)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank()
+  )
+```
+####stats
+```{r}
+
+```
+#FIG 4:
+
+####creating new df with patch transitions
+```{r}
+library(vegan)
+library(dplyr)
+
+#adding transition column 
+patch_trans_data <- pred_patch_data %>%
+  mutate(patch_transition = paste(pred_patch_2024, "→", pred_patch_2025)) %>%
+  dplyr::select(patch_transition, pred_patch_2024, pred_patch_2025, everything(), -latitude, -longitude)
+
+glimpse(patch_trans_data)
+```
+
+##4a: RDA for BAR -> INCIP
+```{r}
+# Barren → Incipient
+barrens_to_incip <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ INCIP"))
+
+
+glimpse(barrens_to_incip)
+
+view(barrens_to_incip)
+# Species matrix: only numeric abundance/density/cover columns, excluding urchins
+species_matrix <- barrens_to_incip %>%
+  dplyr::select(-patch_transition, -pred_patch_2024, -pred_patch_2025, -site, -zone, -year, -relief, -risk,
+                -purple_urchin_densitym2, -purple_urchin_conceiledm2, -purple_urchin_active_foraging_densitym2,
+                -red_urchin_densitym2, -red_urchin_conceiledm2, -red_urchin_active_foraging_densitym2) %>%
+  dplyr::select(where(is.numeric))
+
+#Hellinger transformation
+species_hellinger <- decostand(species_matrix, method = "hellinger")
+
+# Environmental matrix: include urchins, relief, risk, patch info
+env_matrix <- barrens_to_incip %>%
+  dplyr::select(relief, risk,
+                purple_urchin_densitym2, year)
+
+
+#running the rda
+library(vegan)
+library(ggplot2)
+
+
+# Run RDA
+rda_model <- rda(species_hellinger ~ ., data = env_matrix)
+
+# Check the summary
+summary(rda_model)
+
+# Check proportion of variance explained
+RsquareAdj(rda_model)
+
+# Test significance of the RDA model
+anova(rda_model, permutations = 999)
+
+# Test significance of each axis
+anova(rda_model, by = "axis", permutations = 999)
+
+# Plotting the RDA
+plot(rda_model, scaling = 2, main = "RDA: Barren → Incipient Patch Transitions")
+
+```
+
+
+##Bar Graphs
+###kelps
+```{r}
+density_kelp_vars <- c(
+  "macro_stipe_density_",
+  "density_ptecal",
+  "density_nerlue", 
+  "density_lamset", 
+  "lamr_densitym2",
+  "macr_densitym2",
+  "macj_densitym2",
+  "nerj_densitym2",
+  "ptej_densitym2",
+  "lsetj_densitym2"
+)
+
+# Define your variable labels by category
+var_labels <- c(
+  #MACRO
+  macro_stipe_density_ = "M. pyrifera (adult)",
+  macj_densitym2       = "M. pyrifera (juvenile)",
+  macr_densitym2       = "M. pyrifera (recruit)",
+  
+  #NEREO
+  density_nerlue        = "N. luetkeana (adult)", 
+  nerj_densitym2       = "N. luetkeana (juvenile)",
+  
+  #PTECAL
+  density_ptecal        = "P. californicus (adult)",
+  ptej_densitym2       = "P. californicus (juvenile)",
+  
+  #LSETJ
+  density_lamset        = "L. setchellii (adult)",
+  lsetj_densitym2      = "L. setchellii (juvenile)",
+  
+  lamr_densitym2       = "Laminaria (recruit)"
+)
+
+# Explicit order for plotting
+plot_order <- c(
+  "M. pyrifera (adult)",
+    "M. pyrifera (juvenile)",
+   "M. pyrifera (recruit)",
+  
+
+  "N. luetkeana (adult)",
+    "N. luetkeana (juvenile)",
+  
+    "P. californicus (adult)",
+    "P. californicus (juvenile)",
+  
+  "L. setchellii (adult)",
+  "L. setchellii (juvenile)",
+  
+  "Laminaria (recruit)"
+ 
+)
+
+plot_kelp_data <- year_one_data %>%
+  group_by(site, zone, site_type) %>%
+  summarise(across(all_of(names(var_labels)), mean, na.rm = TRUE), .groups = "drop") %>%
+  pivot_longer(cols = all_of(names(var_labels)), names_to = "variable", values_to = "density") %>%
+  group_by(variable, site_type) %>%
+  summarise(
+    mean_density = mean(density, na.rm = TRUE),
+    se_density = sd(density, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    variable_label = factor(var_labels[variable], levels = plot_order) # explicit adult→juvenile→recruit order
+  )
+
+ggplot(plot_kelp_data, aes(x = variable_label, y = mean_density, fill = site_type)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.7, color = "black") +
+  geom_errorbar(
+    aes(ymin = mean_density - se_density, ymax = mean_density + se_density),
+    position = position_dodge(width = 0.85),
+    width = 0.2, size = 0.6
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Mean Kelp Density by Life Stage and Site Type",
+    x = NULL,
+    y = expression("Mean Density (individuals" ~ m^{-2}*")")
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "top",
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 13),
+    axis.text.y = element_text(size = 13),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+
+```
+
+
+###urchins
+```{r}
+density_urchin_vars <- c(
+  "purple_urchin_densitym2",
+  "purple_urchin_conceiledm2"
+)
+
+urchin_var_labels <- c(
+  purple_urchin_densitym2 = "Purple Urchin Density (m²)",
+  purple_urchin_conceiledm2 = "Purple Urchin Conceiled Density (m²)")
+
+
+plot_urchin_data <- year_one_data %>%
+  group_by(site, zone, site_type) %>%
+  summarise(across(all_of(names(urchin_var_labels)), mean, na.rm = TRUE), .groups = "drop") %>%
+  pivot_longer(cols = all_of(names(urchin_var_labels)), names_to = "variable", values_to = "density") %>%
+  group_by(variable, site_type) %>%
+  summarise(
+    mean_density = mean(density, na.rm = TRUE),
+    se_density = sd(density, na.rm = TRUE) / sqrt(n()),
+    .groups = "drop"
+  ) 
+
+plot_urchin_data <- plot_urchin_data %>%
+  mutate(
+    variable_label = factor(urchin_var_labels[variable], levels = urchin_var_labels)
+  )
+
+ggplot(plot_urchin_data, aes(x = variable_label, y = mean_density, fill = site_type)) +
+  geom_col(position = position_dodge(width = 0.85), width = 0.7, color = "black") +
+  geom_errorbar(
+    aes(ymin = mean_density - se_density, ymax = mean_density + se_density),
+    position = position_dodge(width = 0.85),
+    width = 0.2, size = 0.6
+  ) +
+  scale_fill_brewer(palette = "Set2") +
+  labs(
+    title = "Mean Urchin Density by Life Stage and Site Type",
+    x = NULL,
+    y = expression("Density")
+  ) +
+  theme_minimal(base_size = 16) +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.title = element_blank(),
+    legend.position = "top",
+    axis.text.x = element_text(angle = 0, hjust = 0.5, size = 13),
+    axis.text.y = element_text(size = 13),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+```
+
+#Tornado Plots
+##BAR Deep
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "BAR"
+selected_zone <- "Deep"
+
+plot_data <- merged_data %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    purple_urchin_densitym2 = mean(purple_urchin_densitym2, na.rm = TRUE),
+    purple_urchin_conceiledm2 = mean(purple_urchin_conceiledm2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+library(ggplot2)
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+BAR_deep <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Deep Barrens",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+
+BAR_deep
+
+
+```
+##BAR Shallow
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "BAR"
+selected_zone <- "Shallow"
+
+plot_data <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+BAR_shallow <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Shallow Barrens",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+
+
+BAR_shallow
+
+```
+##INCIP Deep
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "INCIP"
+selected_zone <- "Deep"
+
+plot_data <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+INCIP_deep <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Deep Incipients",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+INCIP_deep
+
+```
+##INCIP Shallow
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "INCIP"
+selected_zone <- "Shallow"
+
+plot_data <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+INCIP_shallow <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Shallow Incipients",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+INCIP_shallow
+
+```
+##FOR Deep
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "FOR"
+selected_zone <- "Deep"
+
+plot_data <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+FOR_deep <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Deep Forests",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+FOR_deep
+
+```
+##FOR Shallow
+```{r}
+# Specify site_type and zone for this plot
+selected_site_type <- "FOR"
+selected_zone <- "Shallow"
+
+plot_data <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025),
+         site_type == selected_site_type,
+         zone == selected_zone) %>%
+  group_by(year) %>%  # group only by year since we're summarizing for this site_type+zone subset
+  summarise(
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    ,
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = -year,
+    names_to = "variable",
+    values_to = "value"
+  ) %>%
+  mutate(
+    value = ifelse(year == 2024, -value, value),  # 2024 values negative for left side
+    year = as.factor(year)
+  )
+
+# Custom labels
+var_labels <- c(
+  total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)"
+)
+
+variable_order <- c(total_urchin_densitym2 = "Total Density of Urchins (m²)",
+  total_urchin_foraging_densitym2 = "Density of Urchins Foraging (m²)",
+  lamr = "Laminaria (recruit)",
+  macr = "M. pyrifera (recruit)",
+  macj = "M. pyrifera (juvenile)",
+  nerj = "N. luetkeana (juvenile)",
+  ptej = "P. californicus (juvenile)",
+  lsetj = "L. setchellii (juvenile)",
+  eisj = "E. arborea (juvenile)")
+
+
+# Refined plot
+FOR_shallow <- ggplot(plot_data, aes(x = reorder(variable, abs(value), levels = names(var_labels)), y = value, fill = year)) +
+  geom_col(width = 0.7, color = "gray20") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_x_discrete(labels = var_labels) +
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728")) +
+  labs(
+    title = "Shallow Forests",
+    subtitle = "Mean Densities in 2024 vs 2025",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+   theme_minimal(base_size = 14) +
+theme(
+  plot.title = element_text(hjust = 0.7, face = "bold", size = 16),
+  plot.subtitle = element_text(hjust = 0.75, size = 13, margin = margin(b = 10)),
+  plot.title.position = "plot",  # keeps title/subtitle together at top
+  axis.text = element_text(color = "black"),
+  legend.position = "top",
+  panel.grid.major.y = element_blank()
+)
+
+FOR_shallow
+
+```
+
+#RDA for Kelp Recruits by Year, Site Type, and Zone
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(ggrepel)  # for nice labels
+
+# Step 1: Aggregate and prepare data (same as before)
+agg_data <- quad_avgs %>%
+  mutate(year = lubridate::year(survey_date)) %>%
+  filter(year %in% c(2024, 2025)) %>%
+  group_by(site_type, zone, year) %>%
+  summarise(
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    eisj = mean(eisj, na.rm = TRUE),
+    purple_urchin_densitym2 = mean(purple_urchin_densitym2, na.rm = TRUE),
+    purple_urchin_active_foraging_densitym2 = mean(purple_urchin_active_foraging_densitym2, na.rm = TRUE),
+    risk = mean(risk, na.rm = TRUE),
+    relief = mean(relief, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+kelp_comm_agg <- agg_data %>%
+  select(lamr, macr, macj, nerj, ptej, lsetj, eisj)
+
+env_agg <- agg_data %>%
+  select(purple_urchin_densitym2, purple_urchin_active_foraging_densitym2, risk, relief)
+
+env_scaled <- as.data.frame(scale(env_agg))
+
+# Step 2: Run RDA
+rda_model <- rda(kelp_comm_agg ~ ., data = env_scaled)
+
+# Step 3: Extract scores for plotting
+sites <- as.data.frame(scores(rda_model, display = "sites"))
+sites$site_type <- agg_data$site_type
+sites$zone <- agg_data$zone
+sites$year <- as.factor(agg_data$year)
+sites$label <- paste(agg_data$site_type, agg_data$zone, agg_data$year, sep = " - ")
+
+species <- as.data.frame(scores(rda_model, display = "species"))
+species$species <- rownames(species)
+
+biplot_env <- as.data.frame(scores(rda_model, display = "bp"))
+biplot_env$variable <- rownames(biplot_env)
+
+# Step 4: Plot with ggplot2
+ggplot() +
+  # Sites points
+  geom_point(data = sites, aes(x = RDA1, y = RDA2, color = year, shape = zone), size = 4) +
+  
+  # Site labels
+  ggrepel::geom_text_repel(data = sites, aes(x = RDA1, y = RDA2, label = label), size = 3, max.overlaps = 10) +
+  
+  # Species arrows and labels (scaled)
+  geom_segment(data = species,
+               aes(x = 0, y = 0, xend = RDA1*2, yend = RDA2*2),
+               arrow = arrow(length = unit(0.25, "cm")),
+               color = "darkgreen") +
+  geom_text(data = species,
+            aes(x = RDA1*2.2, y = RDA2*2.2, label = species),
+            color = "darkgreen", size = 3, fontface = "italic") +
+  
+  # Environmental arrows and labels (scaled)
+  geom_segment(data = biplot_env,
+               aes(x = 0, y = 0, xend = RDA1*2, yend = RDA2*2),
+               arrow = arrow(length = unit(0.25, "cm")),
+               color = "red") +
+  geom_text(data = biplot_env,
+            aes(x = RDA1*2.2, y = RDA2*2.2, label = variable),
+            color = "red", size = 3, fontface = "bold") +
+  
+  # Axis labels and title
+  labs(
+    title = "RDA: Kelp Communities by Site Type, Zone, and Year",
+    x = paste0("RDA1 (", round(summary(rda_model)$cont$importance[2,1]*100, 1), "% variance)"),
+    y = paste0("RDA2 (", round(summary(rda_model)$cont$importance[2,2]*100, 1), "% variance)"),
+    color = "Year",
+    shape = "Zone"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  ) +
+  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728"))
+
+```
+
+#RDA for Kelp Recruits by Year and Site Type
+
+```{r}
+library(tidyverse)
+library(vegan)
+library(ggrepel)
+library(lubridate)
+
+# Aggregate by site_type and year only (combining zones)
+agg_data_site <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025)) %>%
+  group_by(site_type, year) %>%
+  summarise(
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    eisj = mean(eisj, na.rm = TRUE),
+    purple_urchin_densitym2 = mean(purple_urchin_densitym2, na.rm = TRUE),
+    purple_urchin_active_foraging_densitym2 = mean(purple_urchin_active_foraging_densitym2, na.rm = TRUE),
+    risk = mean(risk, na.rm = TRUE),
+    relief = mean(relief, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Kelp community matrix
+kelp_comm_site <- agg_data_site %>%
+  select(lamr, macr, macj, nerj, ptej, lsetj, eisj)
+
+# Environmental predictors scaled
+env_site <- agg_data_site %>%
+  select(purple_urchin_densitym2, purple_urchin_active_foraging_densitym2, risk, relief)
+
+env_scaled_site <- as.data.frame(scale(env_site))
+
+# RDA model
+rda_model_site <- rda(kelp_comm_site ~ ., data = env_scaled_site)
+
+# Extract scores for plotting
+sites <- as.data.frame(scores(rda_model_site, display = "sites"))
+sites$site_type <- agg_data_site$site_type
+sites$year <- as.factor(agg_data_site$year)
+sites$label <- paste(agg_data_site$site_type, agg_data_site$year, sep = " - ")
+
+species <- as.data.frame(scores(rda_model_site, display = "species"))
+species$species <- rownames(species)
+
+biplot_env <- as.data.frame(scores(rda_model_site, display = "bp"))
+biplot_env$variable <- rownames(biplot_env)
+
+# Plot with ggplot2
+ggplot() +
+  geom_point(data = sites, aes(x = RDA1, y = RDA2, color = year), size = 5) +
+  ggrepel::geom_text_repel(data = sites, aes(x = RDA1, y = RDA2, label = label), size = 4) +
+  
+  geom_segment(data = species,
+               aes(x = 0, y = 0, xend = RDA1*2, yend = RDA2*2),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "darkgreen") +
+  geom_text(data = species,
+            aes(x = RDA1*2.2, y = RDA2*2.2, label = species),
+            color = "darkgreen", size = 4, fontface = "italic") +
+  
+  geom_segment(data = biplot_env,
+               aes(x = 0, y = 0, xend = RDA1*2, yend = RDA2*2),
+               arrow = arrow(length = unit(0.3, "cm")),
+               color = "red") +
+  geom_text(data = biplot_env,
+            aes(x = RDA1*2.2, y = RDA2*2.2, label = variable),
+            color = "red", size = 4, fontface = "bold") +
+  
+  labs(
+    title = "RDA: Kelp Communities by Site Type and Year",
+    x = paste0("RDA1 (", round(summary(rda_model_site)$cont$importance[2,1]*100, 1), "% variance)"),
+    y = paste0("RDA2 (", round(summary(rda_model_site)$cont$importance[2,2]*100, 1), "% variance)"),
+    color = "Year"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    legend.position = "top",
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  ) +
+  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#d62728"))
+  
+```
+```{r}
+# Aggregate & filter data
+agg_data_site <- quad_avgs %>%
+  mutate(year = year(survey_date)) %>%
+  filter(year %in% c(2024, 2025)) %>%
+  filter(!site %in% c("REC_06", "REC_07")) %>%   # <--- remove these sites
+  group_by(site, site_type, zone, year) %>%
+  summarise(
+    lamr = mean(lamr, na.rm = TRUE),
+    macr = mean(macr, na.rm = TRUE),
+    macj = mean(macj, na.rm = TRUE),
+    nerj = mean(nerj, na.rm = TRUE),
+    ptej = mean(ptej, na.rm = TRUE),
+    lsetj = mean(lsetj, na.rm = TRUE),
+    eisj = mean(eisj, na.rm = TRUE),
+    total_urchin_densitym2 = mean(total_urchin_densitym2, na.rm = TRUE),
+    total_urchin_foraging_densitym2 = mean(total_urchin_foraging_densitym2, na.rm = TRUE),
+    risk = mean(risk, na.rm = TRUE),
+    relief = mean(relief, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Prepare data
+kelp_comm <- agg_data_site %>% select(lamr, macr, macj, nerj, ptej, lsetj, eisj)
+kelp_comm_hel <- decostand(kelp_comm, method = "hellinger")
+rda_model <- rda(kelp_comm_hel ~ ., data = env_vars)
+
+env_vars <- agg_data_site %>%
+  select(total_urchin_densitym2, total_urchin_foraging_densitym2, risk, relief) %>%
+  scale() %>%
+  as.data.frame()
+
+# Run RDA
+
+# Extract scores
+site_scores <- as.data.frame(scores(rda_model, display = "sites"))
+site_scores <- bind_cols(site_scores, agg_data_site %>% select(site, site_type, zone, year)) %>%
+  mutate(label = paste(site, zone), year = as.factor(year))
+
+species_scores <- as.data.frame(scores(rda_model, display = "species", scaling = 2))
+env_scores <- as.data.frame(scores(rda_model, display = "bp", scaling = 2))
+
+# Colorblind-friendly palette (Okabe-Ito)
+cb_palette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+ggplot() +
+  # Ellipses (lighter fill for clarity)
+  stat_ellipse(data = site_scores, aes(x = RDA1, y = RDA2, group = interaction(site_type, year), color = site_type, fill = site_type),
+               linetype = "dashed", alpha = 0.15, size = 1, geom = "polygon", show.legend = FALSE) +
+  # Site points
+  geom_point(data = site_scores, aes(x = RDA1, y = RDA2, color = site_type, shape = year),
+             size = 5, stroke = 1, alpha = 0.85) +
+  # Site labels (optional: comment out if too busy)
+  #geom_text(data = site_scores, aes(x = RDA1, y = RDA2, label = label),
+            #size = 3, vjust = -1, hjust = 0.5, color = "gray20", fontface = "bold") +
+  # Species vectors (italicized labels)
+  geom_segment(data = species_scores, aes(x = 0, y = 0, xend = RDA1, yend = RDA2),
+               arrow = arrow(length = unit(0.3, "cm")), color = "#009E73", linewidth = 1) +
+  geom_text(data = species_scores, aes(x = RDA1, y = RDA2, label = rownames(species_scores)),
+            color = "#009E73", fontface = "italic", size = 4, vjust = 1.5) +
+  # Environmental arrows (bold labels)
+  geom_segment(data = env_scores, aes(x = 0, y = 0, xend = RDA1, yend = RDA2),
+               arrow = arrow(length = unit(0.3, "cm")), color = "#D55E00", linewidth = 1) +
+  geom_text(data = env_scores, aes(x = RDA1, y = RDA2, label = rownames(env_scores)),
+            color = "#D55E00", size = 4, vjust = 1.2, fontface = "bold") +
+  # Labels and theme
+  labs(
+    title = "RDA of Kelp Community Composition (2024–2025)",
+    subtitle = "Environmental predictors: Urchin density, foraging, risk, and relief",
+    x = "RDA1 (constrained variance)",
+    y = "RDA2",
+    color = "Site Type",
+    shape = "Year"
+  ) +
+  scale_color_manual(values = cb_palette) +
+  scale_fill_manual(values = cb_palette) +
+  theme_minimal(base_size = 16) +
+  theme(
+    legend.position = "top",
+    legend.title = element_text(size = 14, face = "bold"),
+    legend.text = element_text(size = 12),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18),
+    plot.subtitle = element_text(hjust = 0.5, size = 14, margin = margin(b = 15)),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(color = "black"),
+    panel.grid.minor = element_blank()
+  )
+
+site_scores %>% arrange(desc(RDA1)) %>% head()
+site_scores %>% arrange(RDA1) %>% head()
+
+
+```
+
+###testing the stats of the lda 
+```{r}
+# ---- SETTINGS ----
+set.seed(123)       # For reproducibility
+n_perm <- 999       # Number of permutations for significance testing
+
+# ---- LDA ----
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp+ cov_lam_holdfast_live + cov_mac_holdfast_live,
+                 data = year_one_data)
+
+cat("\n---- LDA Summary ----\n")
+print(lda_model)
+
+# ---- CROSS-VALIDATION ----
+lda_cv <- lda(site_type ~ macro_stipe_density_  + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp+ cov_lam_holdfast_live + cov_mac_holdfast_live,
+              data = year_one_data,
+              CV = TRUE)
+
+conf_mat <- table(Predicted = lda_cv$class, Actual = year_one_data$site_type)
+acc_obs <- mean(lda_cv$class == year_one_data$site_type)
+
+cat("\n---- Cross-Validation ----\n")
+cat("Observed Accuracy:", round(acc_obs, 3), "\n")
+cat("Confusion Matrix:\n")
+print(conf_mat)
+
+# ---- PERMUTATION TEST ----
+acc_perm <- numeric(n_perm)
+
+for (i in 1:n_perm) {
+  shuffled <- year_one_data
+  shuffled$site_type <- sample(shuffled$site_type)
+  lda_perm <- lda(site_type ~ macro_stipe_density_  + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp,
+                  data = shuffled,
+                  CV = TRUE)
+  acc_perm[i] <- mean(lda_perm$class == shuffled$site_type)
+}
+
+p_value <- mean(acc_perm >= acc_obs)
+
+cat("\n---- Permutation Test ----\n")
+cat("Permutation p-value:", round(p_value, 4), "\n")
+
+# ---- MANOVA ----
+pred_scores <- predict(lda_model)$x
+manova_res <- manova(pred_scores ~ year_one_data$site_type)
+manova_summary <- summary(manova_res, test = "Wilks")
+
+cat("\n---- MANOVA ----\n")
+print(manova_summary)
+
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+##LDA at transect level
+###creating the new dataframe with merging the og dfs
+
+
+library(dplyr)
+
+# Function to get mode (most common value)
+get_mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+quad_data_transect <- quad_data %>%
+  group_by(site, site_type, zone, survey_date, transect) %>%
+  summarise(
+    # Categorical
+    substrate = get_mode(substrate),
+    
+    # Relief & risk: mean
+    relief = mean(relief, na.rm = TRUE),
+    risk = mean(risk, na.rm = TRUE),
+    
+    # Densities: mean across quadrats
+    across(ends_with("m2"), ~ mean(.x, na.rm = TRUE)),
+    
+    # Coverage: mean across quadrats
+    across(starts_with("cov_"), ~ mean(.x, na.rm = TRUE)),
+    
+    .groups = "drop"
+  )
+
+
+merged_data_2 <- kelp_data %>%
+  mutate(site = if_else(site == "RECO_04", "REC_04", site)) %>%
+  filter(!(site == "REC_05" & site_type == "INCIP" & zone == "Shallow" & survey_date == as.Date("2025-06-09"))) %>%
+  inner_join(macro_data, by = c("site", "site_type", "zone", "survey_date", "transect")) %>%
+  inner_join(quad_data_transect, by = c("site", "site_type", "zone", "survey_date", "transect"))
+
+
+
+#creating a new column that just has years for future analysis  
+merged_data_2$year <- as.numeric(format(merged_data_2$survey_date, "%Y"))
+
+
+#normalizing 2024 data 
+
+year_one_data_transect <- merged_data_2 %>% 
+  filter(year == 2024) %>%
+  filter() %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
+
+year_one_data_transect[sapply(year_one_data_transect, is.numeric)] <-
+  lapply(year_one_data_transect[sapply(year_one_data_transect, is.numeric)],
+         function(x) { x[is.na(x)] <- 0; x })
+
+year_one_data_transect %>%
+  group_by(site, site_type, zone, year, transect) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+```
+###running the new LDA
+```{r}
+year_one_data_transect$site_type <- as.factor(year_one_data_transect$site_type)
+  
+# Identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(year_one_data_transect), value = TRUE)
+
+# Divide those columns by 20
+year_one_data_transect[cols_to_scale] <- lapply(year_one_data_transect[cols_to_scale], function(x) x / 20)
+
+# 3. Rename those columns by removing "20m2_"
+names(year_one_data_transect)[names(year_one_data_transect) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+#running lda
+lda_model_transect <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live, data = year_one_data_transect)
+
+#plotting and getting summary
+plot(lda_model_transect)
+
+lda_model_transect
+
+
+#now getting prediction matches and mismatches
+pred_transect <- predict(lda_model_transect)
+
+pred_class_transect <- pred_transect$class
+
+
+results_transect <- year_one_data_transect %>%
+  mutate(predicted = pred_class_transect, 
+         match = site_type == predicted)
+
+mismatches_transect <- results_transect %>% filter(!match)
+
+mismatches_transect
+
+results_transect <- results_transect %>%
+  dplyr::select(year, site, zone, site_type, predicted, match, everything())
+
+results_transect
+
+#gives accuracy, p-value, and predictions
+confusionMatrix(pred_transect$class, year_one_data_transect$site_type)
+
+#accuracy: 83.46%
+
+```
+###coefficients of LDA
+```{r}
+library(tidyr)
+
+# Get coefficients into tidy format
+coef_df_transect <- as.data.frame(lda_model_transect$scaling)
+coef_df_transect$variable <- rownames(coef_df_transect)
+coef_long_transect <- pivot_longer(coef_df_transect, cols = c(LD1, LD2), names_to = "LD", values_to = "coefficient")
+
+# Plot
+ggplot(coef_long_transect, aes(x = reorder(variable, coefficient), y = coefficient, fill = LD)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "LDA Coefficients by Discriminant Function",
+    x = "Variable",
+    y = "Coefficient"
+  ) +
+  scale_fill_brewer(palette = "Set1")
+
+```
+
+#testing the stats of the lda
+```{r}
+# Get LDA scores
+lda_scores_transect <- as.data.frame(predict(lda_model_transect)$x)
+lda_scores_transect$site_type <- year_one_data_transect$site_type
+
+# Plot LD1 vs LD2
+ggplot(lda_scores_transect, aes(x = LD1, y = LD2, color = site_type)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse(level = 0.95, linetype = 2) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "LDA: LD1 vs LD2",
+    x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2), 2) * 100, "%)"),
+    y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2), 2) * 100, "%)")
+  )
+```
+
+##LDA at transect level 
+```{r}
+year_two_data_transect <- merged_data_2 %>% 
+  filter(year == 2024) %>%
+  filter() %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
+
+year_two_data_transect[sapply(year_two_data_transect, is.numeric)] <-
+  lapply(year_two_data_transect[sapply(year_two_data_transect, is.numeric)],
+         function(x) { x[is.na(x)] <- 0; x })
+
+year_two_data_transect %>%
+  group_by(site, site_type, zone, year, transect) %>%
+  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
+```
+
+###running the new LDA
+```{r}
+year_two_data_transect$site_type <- as.factor(year_two_data_transect$site_type)
+  
+# Identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(year_two_data_transect), value = TRUE)
+
+# Divide those columns by 20
+year_two_data_transect[cols_to_scale] <- lapply(year_two_data_transect[cols_to_scale], function(x) x / 20)
+
+# 3. Rename those columns by removing "20m2_"
+names(year_two_data_transect)[names(year_two_data_transect) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+lda_model_transect_2025 <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_two_data_transect)
+
+plot(lda_model_transect_2025)
+
+lda_model_transect_2025
+
+pred_transect_2025 <- predict(lda_model_transect_2025)
+
+pred_transect_2025 <- pred_transect_2025$class
+
+table(Actual = year_two_data_transect$site_type, Predicted = pred_transect_2025)
+
+
+confusionMatrix(pred_transect_2025, year_two_data_transect$site_type)
+```
+
+###coefficients
+```{r}
+coef_df_25_tran <- as.data.frame(lda_model_transect_2025$scaling)
+coef_df_25_tran$variable <- rownames(coef_df_25_tran)
+coef_long_25_tran <- pivot_longer(coef_df_25_tran, cols = c(LD1, LD2), names_to = "LD", values_to = "coefficient")
+
+
+ggplot(coef_long_25_tran, aes(x = reorder(variable, coefficient), y = coefficient, fill = LD)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "LDA Coefficients by Discriminant Function 2025",
+    x = "Variable",
+    y = "Coefficient"
+  ) +
+  scale_fill_brewer(palette = "Set1")
+```
+
+##LDA 2025
+```{r}
+library(MASS)
+
+year_two_data$site_type <- as.factor(year_two_data$site_type)
+  
+# Identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(year_two_data), value = TRUE)
+
+# Divide those columns by 20
+year_two_data[cols_to_scale] <- lapply(year_two_data[cols_to_scale], function(x) x / 20)
+
+# 3. Rename those columns by removing "20m2_"
+names(year_two_data)[names(year_two_data) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+lda_model_2025 <- lda(site_type ~ macro_stipe_density_ + density_macstump + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + tegula_densitym2 + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp + cov_dictyota_dictyopteris + cov_desmarestia_spp, data = year_two_data)
+
+
+#lda figure
+plot(lda_model_2025)
+
+#lda summary
+lda_model_2025
+
+
+#getting predictions etc etc 
+pred25 <- predict(lda_model_2025)
+
+pred25_class <- pred25$class
+
+
+#accuracy of lda model
+mean(pred25_class == year_two_data$site_type)
+
+#confusion matrix
+library(caret)
+confusionMatrix(pred25_class, year_two_data$site_type)
+
+######RESULTS: all site types predicted correctly, model has 100% accuracy, p-value is significant
+```
+###coefficients
+```{r}
+# Get coefficients into tidy format
+coef_df_25 <- as.data.frame(lda_model_2025$scaling)
+coef_df_25$variable <- rownames(coef_df_25)
+coef_long_25 <- pivot_longer(coef_df_25, cols = c(LD1, LD2), names_to = "LD", values_to = "coefficient")
+
+# Plot
+ggplot(coef_long_25, aes(x = reorder(variable, coefficient), y = coefficient, fill = LD)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "LDA Coefficients by Discriminant Function 2025",
+    x = "Variable",
+    y = "Coefficient"
+  ) +
+  scale_fill_brewer(palette = "Set1")
+```
+#2024 vs. 2025 patch prediction confusion matrix
+
+```{r}
+conf_mat <- table(year_two_data$site_type, year_two_data$site_type_pred)
+
+ggplot(as.data.frame(conf_mat), aes(Var1, Var2, fill = Freq)) +
+  geom_tile() +
+  geom_text(aes(label = Freq), color = "white") +
+  scale_fill_gradient(low = "grey90", high = "steelblue") +
+  labs(x = "Actual site type", y = "Predicted site type",
+       title = "LDA Confusion Matrix (2025)") +
+  theme_minimal()
+
+
+```
