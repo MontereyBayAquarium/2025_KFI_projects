@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # packages
 install.packages("librarian")
-librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr")
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr", "broom")
 
 library(googledrive)
 
@@ -657,12 +657,130 @@ ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year)))
 ```
 ###Stats (ANOVA)
 ```{r}
-# Example: all functional groups
+# Columns for functional groups
+cols <- c("first_stage", "second_stage", "understory_recruits_juvs",
+          "understory_adults", "canopy_recruits_juv", "canopy_adults",
+          "purple_urchins", "purple_urchin_conceiled")
+
+# Prepare raw long-format data
 raw_groups <- functional_groups %>%
-  dplyr::select(site, zone, year, first_stage:purple_urchin_conceiled) %>%
-  pivot_longer(cols = first_stage:purple_urchin_conceiled,
-               names_to = "functional_group",
-               values_to = "value")
+  dplyr::select(site, zone, year, all_of(cols)) %>%
+  pivot_longer(
+    cols = all_of(cols),
+    names_to = "functional_group",
+    values_to = "value"
+  )
+
+# Function to check assumptions and run ANOVA, with optional log(x+1) transformation
+anova_check_log <- function(df) {
+  # Original ANOVA
+  aov_model <- aov(value ~ factor(year), data = df)
+  res <- residuals(aov_model)
+  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                        error = function(e) NA)
+  
+  # If assumptions fail, log-transform and rerun
+  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
+    df <- df %>% mutate(value = log(value + 1))
+    aov_model <- aov(value ~ factor(year), data = df)
+    res <- residuals(aov_model)
+    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                          error = function(e) NA)
+    transformed <- TRUE
+  } else {
+    transformed <- FALSE
+  }
+  
+  # Extract ANOVA results
+  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
+  f_val <- tidy_res$statistic
+  p_val <- tidy_res$p.value
+  
+  tibble(
+    functional_group = unique(df$functional_group),
+    shapiro_p = shapiro_p,
+    levene_p = levene_p,
+    transformed = transformed,
+    F_value = f_val,
+    p_value = p_val
+  )
+}
+
+# Apply function to all functional groups
+anova_summary <- raw_groups %>%
+  group_by(functional_group) %>%
+  group_modify(~ anova_check_log(.x)) %>%
+  ungroup()
+
+# View results
+anova_summary
+
+library(ggpubr)
+
+# Format ANOVA summary for the table
+anova_table <- anova_summary %>%
+  dplyr::select(functional_group, F_value, p_value, transformed) %>%
+  mutate(p_value = signif(p_value, 3))  # Round p-values
+
+# Create a table figure
+ggtexttable(anova_table,
+            rows = NULL,       # remove row names
+            theme = ttheme("classic"))
+
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+
+# Create significance labels based on p-value
+anova_summary <- anova_summary %>%
+  mutate(sig_label = case_when(
+    p_value <= 0.001 ~ "***",
+    p_value <= 0.01  ~ "**",
+    p_value <= 0.05  ~ "*",
+    TRUE             ~ ""
+  ))
+
+# Compute maximum y-value per functional group for annotation placement
+y_max <- data_long %>%
+  group_by(functional_group) %>%
+  summarise(y_pos = max(value) + 0.2, .groups = "drop")
+
+# Join y_max with significance labels
+sig_annot <- anova_summary %>%
+  left_join(y_max, by = "functional_group")
+
+# Boxplot with significance annotations
+ggplot(data_long, aes(x = functional_group, y = value, fill = factor(year))) +
+  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
+  geom_jitter(aes(color = factor(year)),
+              position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75),
+              size = 2) +
+  
+  # Add ANOVA significance annotations
+  geom_text(data = sig_annot, aes(x = functional_group, y = y_pos, label = sig_label),
+            inherit.aes = FALSE, vjust = 0) +
+  
+  # Labels & theme
+  labs(
+    x = NULL,
+    y = "Standardized Value (z-score)",
+    fill = "Year",
+    color = "Year"
+  ) +
+  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
+  theme_minimal(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+    axis.title.y = element_text(face = "bold"),
+    legend.position = "top",
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor = element_blank(),
+    panel.grid.major.y = element_line(color = "gray85")
+  )
 
 ```
 
@@ -860,7 +978,81 @@ ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year)))
            label = stages_urchin$stage, fontface = "bold", size = 4)
 ```
 
+###Stats (ANOVA)
+```{r}
+# Columns for functional groups
+cols <- c("first_stage", "second_stage", "understory_recruits_juvs",
+          "understory_adults", "canopy_recruits_juv", "canopy_adults",
+          "purple_urchins", "purple_urchin_conceiled")
 
+# Prepare raw long-format data
+raw_groups <- functional_groups_2 %>%
+  dplyr::select(site, zone, year, all_of(cols)) %>%
+  pivot_longer(
+    cols = all_of(cols),
+    names_to = "functional_group",
+    values_to = "value"
+  )
+
+# Function to check assumptions and run ANOVA, with optional log(x+1) transformation
+anova_check_log <- function(df) {
+  # Original ANOVA
+  aov_model <- aov(value ~ factor(year), data = df)
+  res <- residuals(aov_model)
+  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                        error = function(e) NA)
+  
+  # If assumptions fail, log-transform and rerun
+  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
+    df <- df %>% mutate(value = log(value + 1))
+    aov_model <- aov(value ~ factor(year), data = df)
+    res <- residuals(aov_model)
+    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                          error = function(e) NA)
+    transformed <- TRUE
+  } else {
+    transformed <- FALSE
+  }
+  
+  # Extract ANOVA results
+  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
+  f_val <- tidy_res$statistic
+  p_val <- tidy_res$p.value
+  
+  tibble(
+    functional_group = unique(df$functional_group),
+    shapiro_p = shapiro_p,
+    levene_p = levene_p,
+    transformed = transformed,
+    F_value = f_val,
+    p_value = p_val
+  )
+}
+
+# Apply function to all functional groups
+anova_summary <- raw_groups %>%
+  group_by(functional_group) %>%
+  group_modify(~ anova_check_log(.x)) %>%
+  ungroup()
+
+# View results
+anova_summary
+
+library(ggpubr)
+
+# Format ANOVA summary for the table
+anova_table <- anova_summary %>%
+  dplyr::select(functional_group, F_value, p_value, transformed) %>%
+  mutate(p_value = signif(p_value, 3))  # Round p-values
+
+# Create a table figure
+ggtexttable(anova_table,
+            rows = NULL,       # remove row names
+            theme = ttheme("classic"))
+
+```
 
 #FIG 4:
 
@@ -908,5 +1100,3 @@ nmds <- metaMDS(algal_matrix, distance = "bray", k = 2, trymax = 100)
 nmds
 
 ```
-#proportion conceiled and compare in 2024 patches vs 2025 transitioned 
-#proportional abundance graph of kelps to lookat community composition? 
