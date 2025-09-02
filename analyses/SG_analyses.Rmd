@@ -909,4 +909,4 @@ nmds
 
 ```
 #proportion conceiled and compare in 2024 patches vs 2025 transitioned 
-#proportional abundance graph of kelps to look at community composition? 
+#proportional abundance graph of kelps to lookat community composition? 
