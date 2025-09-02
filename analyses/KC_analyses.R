@@ -1,43 +1,18 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-# Keenan's Script
-=======
-##Keenan's Script
-
-
-  
-
-=======
 # Keenan's script
->>>>>>> 1cf4b5b849e2c63cf5edba3fc9973a3a84dfd2e9
 
 rm(list=ls())
 
 ################################################################################
-<<<<<<< HEAD
-#Load packages, data, set dir
-
-require(librarian)
-librarian::shelf(tidyverse,ggplot2, janitor, readxl, googlesheets4)
-=======
 # Load packages, data, set dir
 
 require(librarian)
 librarian::shelf(tidyverse, ggplot2, janitor, readxl, googlesheets4)
 
 gs4_auth()
->>>>>>> 1cf4b5b849e2c63cf5edba3fc9973a3a84dfd2e9
 
 derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
                        sheet = 4) %>% clean_names()
 
-<<<<<<< HEAD
-################################################################################
-#Load packages, data, set dir
-
-# Step 1: prep data
-diet_overall <- derm_raw %>%
-=======
 margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1LB_ze2e68ZI7by8-uT1JNsLxEcNZBZF6jEuoWI1xLIU/edit?gid=1363312898#gid=1363312898", 
                               sheet = 5) %>% clean_names()
 
@@ -61,7 +36,6 @@ diet_overall <- derm_merge %>%
 # Margin diet
 
 margin_diet_overall <- margin_derm_raw %>%
->>>>>>> 1cf4b5b849e2c63cf5edba3fc9973a3a84dfd2e9
   filter(!is.na(diet), diet != "None") %>%
   count(diet) %>%
   arrange(desc(n)) %>%
@@ -74,9 +48,6 @@ margin_diet_overall <- margin_derm_raw %>%
   )
 
 ################################################################################
-<<<<<<< HEAD
-#Plot size fq
-=======
 # Merge data
 
 derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
@@ -89,7 +60,6 @@ derm_merge <- rbind(derm_recovery, derm_margin) %>%
 
 ################################################################################
 # Plot size frequency
->>>>>>> 1cf4b5b849e2c63cf5edba3fc9973a3a84dfd2e9
 
 p <- ggplot(diet_overall) +
   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = diet), color = "white") +
@@ -113,27 +83,6 @@ p <- ggplot(diet_overall) +
     panel.grid = element_blank(),
     plot.title = element_text(size=10),
     legend.text = element_text(size=7)
-<<<<<<< HEAD
-    
-  )
-
-
-
-
-# Export
-ggsave(
-  filename = here::here("~", "Downloads", "diet_composition_plot.png"),
-  plot = p,  
-  width = 6,
-  height = 2,
-  dpi = 600,
-  bg = "white"
-)
-
-
-
->>>>>>> 49a536edf86bfca2fef474eca6c995a069240ac7
-=======
   )
 
 p
@@ -157,7 +106,7 @@ ggplot(data = derm_merge, aes(x = size, weight = count)) +
 derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
 ggplot(subset(derm_merge, !(diet %in% c("None", "Other"))), 
-  aes(x = size_bin, y = count, fill = diet)) + 
+       aes(x = size_bin, y = count, fill = diet)) + 
   geom_bar(stat = "identity", position = "fill") + 
   labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
   scale_fill_brewer(palette = "Set2") + 
@@ -192,4 +141,3 @@ ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) +
 #  )
 
 ################################################################################
->>>>>>> 1cf4b5b849e2c63cf5edba3fc9973a3a84dfd2e9
