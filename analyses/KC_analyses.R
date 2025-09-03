@@ -59,7 +59,7 @@ derm_merge <- rbind(derm_recovery, derm_margin) %>%
          urchin_size = ifelse(urchin_size == "NULL",NA, urchin_size))
 
 ################################################################################
-# Plot size frequency
+# Plot diet composition
 
 p <- ggplot(diet_overall) +
   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = diet), color = "white") +
@@ -96,12 +96,22 @@ ggplot(data = derm_merge, aes(x = size, weight = count)) +
   theme_minimal()
 
 ################################################################################
-# Overlayed histogram -> total star size fq vs. urchin eaters
+# Overlayed histogram with quartiles -> star size fq vs. urchin predation fq
+
+# ggplot(data = derm_merge, aes(x = x)) + 
+  # geom_histogram(binwidth = 1, color = "white", fill = "steelblue") + 
+  # geom_vline(xintercept = qs, linetype = "dashed", color = "red", linewidth = 1) + 
+  # labs(x = "star_size", y = "predation_fq", 
+       # title = "predation fq relative to star size",
+       # subtitle = "red dashed lines = Q1, median, Q3")
+
+################################################################################
+# Overlayed histogram with quartiles -> urchin size fq vs. urchin predation fq
 
 
 
 ################################################################################
-# Stacked bar -> shows how diet varies with star size
+# Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
 
 derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
@@ -113,7 +123,7 @@ ggplot(subset(derm_merge, !(diet %in% c("None", "Other"))),
   theme_minimal()
 
 ################################################################################
-# Stacked bar with "Other" and "None"
+# Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
 
 derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
@@ -122,11 +132,6 @@ ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) +
   labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
   scale_fill_brewer(palette = "Set2") + 
   theme_minimal()
-
-################################################################################
-# Scatter plot -> star size vs. urchin size
-
-
 
 ################################################################################
 # Export
