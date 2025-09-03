@@ -409,8 +409,8 @@ ggplot(cross_tab_zone, aes(x = site_type_pred_2024, y = site_type_pred_2025, fil
 
 ```
 
-#FIG 3: Boxplots representing change in functional groups across patch transitions 
-###Creating the df I'll need 
+#FIG 3: Comparing by groups
+#####Creating the df I'll need 
 ```{r}
 library(dplyr)
 library(tidyr)
@@ -463,7 +463,7 @@ patch_trans_data <- pred_patch_data %>%
 view(patch_trans_data)
 
 ```
-# BAR -> INCIP
+#A: BAR -> INCIP
 ```{r}
 # Barren → Incipient
 bar_incip <- patch_trans_data %>%
@@ -471,7 +471,7 @@ bar_incip <- patch_trans_data %>%
 print(bar_incip)
 
 ```
-###Figures
+##### Boxplot
 ```{r}
 #creating functional groups
 
@@ -717,7 +717,6 @@ anova_summary <- raw_groups %>%
 # View results
 anova_summary
 
-library(ggpubr)
 
 # Format ANOVA summary for the table
 anova_table <- anova_summary %>%
@@ -730,9 +729,8 @@ ggtexttable(anova_table,
             theme = ttheme("classic"))
 
 ```
+
 ```{r}
-library(dplyr)
-library(ggplot2)
 
 # Create significance labels based on p-value
 anova_summary <- anova_summary %>%
@@ -784,8 +782,7 @@ ggplot(data_long, aes(x = functional_group, y = value, fill = factor(year))) +
 
 ```
 
-
-# INCIP -> FOR
+#B: INCIP -> FOR
 ```{r}
 # Barren → Incipient
 incip_for <- patch_trans_data %>%
@@ -793,7 +790,7 @@ incip_for <- patch_trans_data %>%
 print(incip_for)
 
 ```
-###Figures
+### Boxplot
 ```{r}
 #creating functional groups
 
@@ -1053,6 +1050,420 @@ ggtexttable(anova_table,
             theme = ttheme("classic"))
 
 ```
+
+
+
+#FIG4: Comparing by species
+##A: BAR -> INCIP
+###Barplot
+```{r}
+
+# 1. Summarize density and cover by patch_transition, zone, site, year
+individual_sp <- bar_incip %>%
+  group_by(patch_transition, zone, site, year) %>%
+  summarise(across(
+    c(n_macro_plants_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
+      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
+      cov_desmarestia_spp),
+    sum,
+    .names = "{.col}"
+  )) %>%
+  rename(
+    macrocystis_adults = n_macro_plants_.x,
+    macrocystis_juveniles = macj_densitym2,
+    macrocystis_recruits = macr_densitym2,
+    nereocystis_adults = density_nerlue,
+    nereocystis_juveniles = nerj_densitym2,
+    pterogophora_adults = density_ptecal,
+    pterogrophora_juveniles = ptej_densitym2,
+    laminariales_spp_recruits = lamr_densitym2,
+    lam_setchellii_adults = density_lamset,
+    lam_setchellii_juveniles = lsetj_densitym2,
+    total_purple_urchins = purple_urchin_densitym2,
+    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    articulated_coralline = cov_articulated_coralline,
+    crustose_coralline = cov_crustose_coralline,
+    encrusting_red = cov_encrusting_red,
+    fleshy_reds = cov_fleshy_red,
+    stephanocystis_adult = cov_stephanocystis,
+    desmerestia_spp = cov_desmarestia_spp
+  ) %>%
+  ungroup()
+
+# 2. Pivot longer
+indv_long <- individual_sp %>%
+  pivot_longer(
+    cols = macrocystis_adults:desmerestia_spp,
+    names_to = "individual_species",
+    values_to = "value"
+  ) %>%
+  mutate(value_log = log1p(value))  # log-transform for skewed counts
+
+# 3. Define groups
+cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
+urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+algae <- c(  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterogrophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterogophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults")
+
+```
+####Macroalgae 
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+alg_density_long <- indv_long %>%
+  filter(!individual_species %in% c(cover_species, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterogrophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterogophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults"
+)
+
+alg_density_long <- alg_density_long %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+algal_density_summary <- alg_density_long %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+
+ggplot(algal_density_summary, aes(x = individual_species, y = mean_value, fill = factor(year))) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
+                position = position_dodge(0.8), width = 0.2, color = "black") +
+  geom_jitter(data = alg_density_long, 
+              aes(x = individual_species, y = value, color = factor(year)),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
+# Fixed y-axis for readability
+  coord_cartesian(ylim = c(0, 0.9))+
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  labs(x = NULL, y = "Mean density (m²)", fill = "Year", color = "Year") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        legend.position = "top",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "gray85"))
+
+```
+
+####Cover algae
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+cov_density_long <- indv_long %>%
+  filter(!individual_species %in% c(algae, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp"
+)
+
+cov_density_long <- cov_density_long %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+cov_density_summary <- cov_density_long %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+
+ggplot(cov_density_summary, aes(x = individual_species, y = mean_value, fill = factor(year))) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
+                position = position_dodge(0.8), width = 0.2, color = "black") +
+  geom_jitter(data = cov_density_long, 
+              aes(x = individual_species, y = value, color = factor(year)),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
+# Fixed y-axis for readability
+  coord_cartesian(ylim = c(0, 55))+
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  labs(x = NULL, y = "% Cover (m²)", fill = "Year", color = "Year") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        legend.position = "top",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "gray85"))
+
+```
+
+###Stats (ANOVA)
+```{r}
+anova_check_log <- function(df) {
+  # ANOVA model for each species
+  aov_model <- aov(value ~ factor(year), data = df)
+  res <- residuals(aov_model)
+  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                        error = function(e) NA)
+  
+  # If assumptions fail, log-transform and rerun
+  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
+    df <- df %>% mutate(value = log(value + 1))
+    aov_model <- aov(value ~ factor(year), data = df)
+    res <- residuals(aov_model)
+    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                          error = function(e) NA)
+    transformed <- TRUE
+  } else {
+    transformed <- FALSE
+  }
+  
+  # Extract ANOVA results
+  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
+  f_val <- tidy_res$statistic
+  p_val <- tidy_res$p.value
+  
+  tibble(
+    individual_species = unique(df$individual_species),
+    shapiro_p = shapiro_p,
+    levene_p = levene_p,
+    transformed = transformed,
+    F_value = f_val,
+    p_value = p_val
+  )
+}
+
+# Apply function to all species
+anova_summary <- indv_long %>%
+  group_by(individual_species) %>%
+  group_modify(~ anova_check_log(.x)) %>%
+  ungroup()
+
+# View results
+anova_summary
+
+# Format ANOVA summary for the table
+anova_table <- anova_summary %>%
+  dplyr::select(individual_species, F_value, p_value, transformed) %>%
+  mutate(p_value = signif(p_value, 3))  # Round p-values
+
+# Create a table figure
+ggtexttable(anova_table,
+            rows = NULL,       # remove row names
+            theme = ttheme("classic"))
+```
+
+
+##B: INCIP -> FOR
+###Barplot
+```{r}
+
+# 1. Summarize density and cover by patch_transition, zone, site, year
+individual_sp <- incip_for %>%
+  group_by(patch_transition, zone, site, year) %>%
+  summarise(across(
+    c(n_macro_plants_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
+      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
+      cov_desmarestia_spp),
+    sum,
+    .names = "{.col}"
+  )) %>%
+  rename(
+    macrocystis_adults = n_macro_plants_.x,
+    macrocystis_juveniles = macj_densitym2,
+    macrocystis_recruits = macr_densitym2,
+    nereocystis_adults = density_nerlue,
+    nereocystis_juveniles = nerj_densitym2,
+    pterogophora_adults = density_ptecal,
+    pterogrophora_juveniles = ptej_densitym2,
+    laminariales_spp_recruits = lamr_densitym2,
+    lam_setchellii_adults = density_lamset,
+    lam_setchellii_juveniles = lsetj_densitym2,
+    total_purple_urchins = purple_urchin_densitym2,
+    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    articulated_coralline = cov_articulated_coralline,
+    crustose_coralline = cov_crustose_coralline,
+    encrusting_red = cov_encrusting_red,
+    fleshy_reds = cov_fleshy_red,
+    stephanocystis_adult = cov_stephanocystis,
+    desmerestia_spp = cov_desmarestia_spp
+  ) %>%
+  ungroup()
+
+# 2. Pivot longer
+indv_long <- individual_sp %>%
+  pivot_longer(
+    cols = macrocystis_adults:desmerestia_spp,
+    names_to = "individual_species",
+    values_to = "value"
+  ) %>%
+  mutate(value_log = log1p(value))  # log-transform for skewed counts
+
+# 3. Define groups
+cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
+urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+algae <- c(  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterogrophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterogophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults")
+
+```
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+alg_density_long <- indv_long %>%
+  filter(!individual_species %in% c(cover_species, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterogrophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterogophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults"
+)
+
+alg_density_long <- alg_density_long %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+algal_density_summary <- alg_density_long %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+
+ggplot(algal_density_summary, aes(x = individual_species, y = mean_value, fill = factor(year))) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
+                position = position_dodge(0.8), width = 0.2, color = "black") +
+  geom_jitter(data = alg_density_long, 
+              aes(x = individual_species, y = value, color = factor(year)),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
+# Fixed y-axis for readability
+  coord_cartesian(ylim = c(0, 3.3))+
+  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
+  labs(x = NULL, y = "Mean density (m²)", fill = "Year", color = "Year") +
+  theme_minimal(base_size = 14) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        legend.position = "top",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.grid.major.y = element_line(color = "gray85"))
+
+```
+
+###Stats (ANOVA)
+```{r}
+anova_check_log <- function(df) {
+  # ANOVA model for each species
+  aov_model <- aov(value ~ factor(year), data = df)
+  res <- residuals(aov_model)
+  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                        error = function(e) NA)
+  
+  # If assumptions fail, log-transform and rerun
+  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
+    df <- df %>% mutate(value = log(value + 1))
+    aov_model <- aov(value ~ factor(year), data = df)
+    res <- residuals(aov_model)
+    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                          error = function(e) NA)
+    transformed <- TRUE
+  } else {
+    transformed <- FALSE
+  }
+  
+  # Extract ANOVA results
+  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
+  f_val <- tidy_res$statistic
+  p_val <- tidy_res$p.value
+  
+  tibble(
+    individual_species = unique(df$individual_species),
+    shapiro_p = shapiro_p,
+    levene_p = levene_p,
+    transformed = transformed,
+    F_value = f_val,
+    p_value = p_val
+  )
+}
+
+# Apply function to all species
+anova_summary <- indv_long %>%
+  group_by(individual_species) %>%
+  group_modify(~ anova_check_log(.x)) %>%
+  ungroup()
+
+# View results
+anova_summary
+
+# Format ANOVA summary for the table
+anova_table <- anova_summary %>%
+  dplyr::select(individual_species, F_value, p_value, transformed) %>%
+  mutate(p_value = signif(p_value, 3))  # Round p-values
+
+# Create a table figure
+ggtexttable(anova_table,
+            rows = NULL,       # remove row names
+            theme = ttheme("classic"))
+```
+
 
 #FIG 4:
 
