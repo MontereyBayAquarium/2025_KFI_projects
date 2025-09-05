@@ -1151,7 +1151,7 @@ algal_density_summary <- alg_density_long %>%
   )
 
 # Prepare data for tornado plot
-algal_density_tornado_1 <- algal_density_summary_bf %>%
+algal_density_tornado_1 <- algal_density_summary %>%
   mutate(
     value_signed = ifelse(year == 2024, -mean_value, mean_value),
     se_signed = ifelse(year == 2024, -se_value, se_value)
@@ -1788,7 +1788,7 @@ algal_density_tornado_3 <- algal_density_summary_bf %>%
   )
 
 # Tornado plot
-ggplot(algal_density_tornado, 
+ggplot(algal_density_tornado_3, 
        aes(x = reorder(individual_species, abs(mean_value)), 
            y = value_signed, 
            fill = factor(year))) +
