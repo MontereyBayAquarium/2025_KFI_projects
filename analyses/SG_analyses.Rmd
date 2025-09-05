@@ -1055,7 +1055,7 @@ ggtexttable(anova_table,
 
 #FIG4: Comparing by species
 ##A: BAR -> INCIP
-###Barplot
+###Plot
 ```{r}
 
 # 1. Summarize density and cover by patch_transition, zone, site, year
@@ -1076,8 +1076,8 @@ individual_sp <- bar_incip %>%
     macrocystis_recruits = macr_densitym2,
     nereocystis_adults = density_nerlue,
     nereocystis_juveniles = nerj_densitym2,
-    pterogophora_adults = density_ptecal,
-    pterogrophora_juveniles = ptej_densitym2,
+    pterygophora_adults = density_ptecal,
+    pterygophora_juveniles = ptej_densitym2,
     laminariales_spp_recruits = lamr_densitym2,
     lam_setchellii_adults = density_lamset,
     lam_setchellii_juveniles = lsetj_densitym2,
@@ -1108,9 +1108,9 @@ urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
 
 algae <- c(  "laminariales_spp_recruits",
   "lam_setchellii_juveniles", 
-  "pterogrophora_juveniles", 
+  "pterygophora_juveniles", 
   "lam_setchellii_adults", 
-  "pterogophora_adults", 
+  "pterygophora_adults", 
   "nereocystis_juveniles", 
   "nereocystis_adults", 
   "macrocystis_recruits", 
@@ -1125,18 +1125,16 @@ alg_density_long <- indv_long %>%
   filter(!individual_species %in% c(cover_species, urchins))
 
 # Define species order for plotting
-species_order <- c(
-  "laminariales_spp_recruits",
+species_order <- c(  "laminariales_spp_recruits",
   "lam_setchellii_juveniles", 
-  "pterogrophora_juveniles", 
+  "pterygophora_juveniles", 
   "lam_setchellii_adults", 
-  "pterogophora_adults", 
+  "pterygophora_adults", 
   "nereocystis_juveniles", 
   "nereocystis_adults", 
   "macrocystis_recruits", 
   "macrocystis_juveniles", 
-  "macrocystis_adults"
-)
+  "macrocystis_adults")
 
 alg_density_long <- alg_density_long %>%
   mutate(individual_species = factor(individual_species, levels = species_order))
@@ -1152,28 +1150,40 @@ algal_density_summary <- alg_density_long %>%
     .groups = "drop" 
   )
 
+# Prepare data for tornado plot
+algal_density_tornado_1 <- algal_density_summary_bf %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
 
-ggplot(algal_density_summary, aes(x = individual_species, y = mean_value, fill = factor(year))) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
-  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
-                position = position_dodge(0.8), width = 0.2, color = "black") +
-  geom_jitter(data = alg_density_long, 
-              aes(x = individual_species, y = value, color = factor(year)),
-              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
-              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
-# Fixed y-axis for readability
-  coord_cartesian(ylim = c(0, 0.9))+
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  labs(x = NULL, y = "Mean density (m²)", fill = "Year", color = "Year") +
+# Tornado plot
+ggplot(algal_density_tornado_1, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "forestgreen")) +
+  labs(
+    title = "BAR -> INCIP",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
   theme_minimal(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        legend.position = "top",
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_line(color = "gray85"))
-
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85")
+  )
 ```
 
 ####Cover algae
@@ -1202,30 +1212,99 @@ cov_density_summary <- cov_density_long %>%
     .groups = "drop" 
   )
 
+# Prepare data for tornado plot
+cov_density_tornado_1 <- cov_density_summary %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
 
-ggplot(cov_density_summary, aes(x = individual_species, y = mean_value, fill = factor(year))) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
-  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
-                position = position_dodge(0.8), width = 0.2, color = "black") +
-  geom_jitter(data = cov_density_long, 
-              aes(x = individual_species, y = value, color = factor(year)),
-              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
-              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
-# Fixed y-axis for readability
-  coord_cartesian(ylim = c(0, 55))+
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  labs(x = NULL, y = "% Cover (m²)", fill = "Year", color = "Year") +
+# Tornado plot
+ggplot(cov_density_tornado_1, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "forestgreen")) +
+  labs(
+    title = "BAR -> INCIP",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "% Cover (per m²)",
+    fill = "Year"
+  ) +
   theme_minimal(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        legend.position = "top",
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_line(color = "gray85"))
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
 
 ```
+####Urchin
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+urch_density_long <- indv_long %>%
+  filter(!individual_species %in% c(algae, cover_species))
 
+# Define species order for plotting
+species_order <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+urch_density_long <- urch_density_long %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+urch_density_summary <- urch_density_long %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+# Prepare data for tornado plot
+urch_density_tornado_1 <- urch_density_summary %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(urch_density_tornado_1, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "forestgreen")) +
+  labs(
+    title = "BAR -> INCIP",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
+
+```
 ###Stats (ANOVA)
 ```{r}
 anova_check_log <- function(df) {
@@ -1286,7 +1365,7 @@ ggtexttable(anova_table,
 
 
 ##B: INCIP -> FOR
-###Barplot
+###Plot
 ```{r}
 
 # 1. Summarize density and cover by patch_transition, zone, site, year
@@ -1307,8 +1386,8 @@ individual_sp_for <- incip_for %>%
     macrocystis_recruits = macr_densitym2,
     nereocystis_adults = density_nerlue,
     nereocystis_juveniles = nerj_densitym2,
-    pterogophora_adults = density_ptecal,
-    pterogrophora_juveniles = ptej_densitym2,
+    pterygophora_adults = density_ptecal,
+    pterygophora_juveniles = ptej_densitym2,
     laminariales_spp_recruits = lamr_densitym2,
     lam_setchellii_adults = density_lamset,
     lam_setchellii_juveniles = lsetj_densitym2,
@@ -1337,18 +1416,21 @@ cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_re
                    "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
 urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
 
-algae <- c(  "laminariales_spp_recruits",
+algae <- c(
+  "laminariales_spp_recruits",
   "lam_setchellii_juveniles", 
-  "pterogrophora_juveniles", 
+  "pterygophora_juveniles", 
   "lam_setchellii_adults", 
-  "pterogophora_adults", 
+  "pterygophora_adults", 
   "nereocystis_juveniles", 
   "nereocystis_adults", 
   "macrocystis_recruits", 
   "macrocystis_juveniles", 
-  "macrocystis_adults")
+  "macrocystis_adults"
+)
 
 ```
+####Macroalgae
 ```{r}
 # 4. Filter algae density only (exclude cover & urchins)
 alg_density_long_for <- indv_long_for %>%
@@ -1358,9 +1440,9 @@ alg_density_long_for <- indv_long_for %>%
 species_order <- c(
   "laminariales_spp_recruits",
   "lam_setchellii_juveniles", 
-  "pterogrophora_juveniles", 
+  "pterygophora_juveniles", 
   "lam_setchellii_adults", 
-  "pterogophora_adults", 
+  "pterygophora_adults", 
   "nereocystis_juveniles", 
   "nereocystis_adults", 
   "macrocystis_recruits", 
@@ -1382,30 +1464,161 @@ algal_density_summary_for <- alg_density_long_for %>%
     .groups = "drop" 
   )
 
+algal_density_tornado_2 <- algal_density_summary_for %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
 
-ggplot(algal_density_summary_for, aes(x = individual_species, y = mean_value, fill = factor(year))) +
-  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
-  geom_errorbar(aes(ymin = mean_value - se_value, ymax = mean_value + se_value),
-                position = position_dodge(0.8), width = 0.2, color = "black") +
-  geom_jitter(data = alg_density_long, 
-              aes(x = individual_species, y = value, color = factor(year)),
-              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
-              size = 1.5, alpha = 0.6, inherit.aes = FALSE) +
-# Fixed y-axis for readability
-  coord_cartesian(ylim = c(0, 3.3))+
-  scale_fill_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  scale_color_manual(values = c("2024" = "#1f77b4", "2025" = "#ff7f0e")) +
-  labs(x = NULL, y = "Mean density (m²)", fill = "Year", color = "Year") +
+# Tornado plot
+ggplot(algal_density_tornado_2, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "forestgreen", "2025" = "#1f77b4")) +
+  labs(
+    title = "INCIP -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
   theme_minimal(base_size = 14) +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        legend.position = "top",
-        panel.grid.major.x = element_blank(),
-        panel.grid.minor = element_blank(),
-        panel.grid.major.y = element_line(color = "gray85"))
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85")
+  )
 
 ```
 
+####Cover algae
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+cov_density_long_2 <- indv_long_for %>%
+  filter(!individual_species %in% c(algae, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp"
+)
+
+cov_density_long_2 <- cov_density_long_2 %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+cov_density_summary_2 <- cov_density_long_2 %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+# Prepare data for tornado plot
+cov_density_tornado_2 <- cov_density_summary_2 %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(cov_density_tornado_2, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "forestgreen", "2025" = "#1f77b4")) +
+  labs(
+    title = "INCIP -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "% Cover (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
+
+```
+####Urchin
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+urch_density_long_2 <- indv_long_for %>%
+  filter(!individual_species %in% c(algae, cover_species))
+
+# Define species order for plotting
+species_order <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+urch_density_long_2 <- urch_density_long_2 %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+urch_density_summary_2 <- urch_density_long_2 %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+# Prepare data for tornado plot
+urch_density_tornado_2 <- urch_density_summary_2 %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(urch_density_tornado_2, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "forestgreen", "2025" = "#1f77b4")) +
+  labs(
+    title = "INCIP -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
+
+```
 ###Stats (ANOVA)
 ```{r}
 anova_check_log <- function(df) {
@@ -1465,9 +1678,325 @@ ggtexttable(anova_table,
 ```
 
 
+
+##C: BAR -> FOR
+```{r}
+bar_for <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ FOR"))
+```
+```{r}
+# 1. Summarize density and cover by patch_transition, zone, site, year
+individual_sp_bf <- bar_for %>%
+  group_by(patch_transition, zone, site, year) %>%
+  summarise(across(
+    c(macro_stipe_density_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
+      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
+      cov_desmarestia_spp),
+    sum,
+    .names = "{.col}"
+  )) %>%
+  rename(
+    macrocystis_adults = macro_stipe_density_.x,
+    macrocystis_juveniles = macj_densitym2,
+    macrocystis_recruits = macr_densitym2,
+    nereocystis_adults = density_nerlue,
+    nereocystis_juveniles = nerj_densitym2,
+    pterygophora_adults = density_ptecal,
+    pterygophora_juveniles = ptej_densitym2,
+    laminariales_spp_recruits = lamr_densitym2,
+    lam_setchellii_adults = density_lamset,
+    lam_setchellii_juveniles = lsetj_densitym2,
+    total_purple_urchins = purple_urchin_densitym2,
+    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    articulated_coralline = cov_articulated_coralline,
+    crustose_coralline = cov_crustose_coralline,
+    encrusting_red = cov_encrusting_red,
+    fleshy_reds = cov_fleshy_red,
+    stephanocystis_adult = cov_stephanocystis,
+    desmerestia_spp = cov_desmarestia_spp
+  ) %>%
+  ungroup()
+
+# 2. Pivot longer
+indv_long_bf <- individual_sp_bf %>%
+  pivot_longer(
+    cols = macrocystis_adults:desmerestia_spp,
+    names_to = "individual_species",
+    values_to = "value"
+  ) %>%
+  mutate(value_log = log1p(value))  # log-transform for skewed counts
+
+# 3. Define groups
+cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
+urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+algae <- c(  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterygophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterygophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults")
+```
+```{r}
+alg_density_long_bf <- indv_long_bf %>%
+  filter(!individual_species %in% c(cover_species, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "laminariales_spp_recruits",
+  "lam_setchellii_juveniles", 
+  "pterygophora_juveniles", 
+  "lam_setchellii_adults", 
+  "pterygophora_adults", 
+  "nereocystis_juveniles", 
+  "nereocystis_adults", 
+  "macrocystis_recruits", 
+  "macrocystis_juveniles", 
+  "macrocystis_adults"
+)
+
+
+alg_density_long_bf <- alg_density_long_bf %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+#Getting SE and SDs
+algal_density_summary_bf <- alg_density_long_bf %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+```
+###Plot
+####Macroalgae
+```{r}
+# Prepare data for tornado plot
+algal_density_tornado_3 <- algal_density_summary_bf %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(algal_density_tornado, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "#1f77b4")) +
+  labs(
+    title = "BAR -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85")
+  )
+
+``` 
+####Cover algae
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+cov_density_long_3 <- indv_long_bf %>%
+  filter(!individual_species %in% c(algae, urchins))
+
+# Define species order for plotting
+species_order <- c(
+  "articulated_coralline", "crustose_coralline", "encrusting_red",
+                   "fleshy_reds", "stephanocystis_adult", "desmerestia_spp"
+)
+
+cov_density_long_3 <- cov_density_long_3 %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+cov_density_summary_3 <- cov_density_long_3 %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+# Prepare data for tornado plot
+cov_density_tornado_3 <- cov_density_summary_3 %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(cov_density_tornado_3, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "#1f77b4")) +
+  labs(
+    title = "BAR -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "% Cover (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
+
+```
+####Urchin
+```{r}
+# 4. Filter algae density only (exclude cover & urchins)
+urch_density_long_3 <- indv_long_bf %>%
+  filter(!individual_species %in% c(algae, cover_species))
+
+# Define species order for plotting
+species_order <- c("total_purple_urchins", "conceiled_purple_urchins")
+
+urch_density_long_3 <- urch_density_long_3 %>%
+  mutate(individual_species = factor(individual_species, levels = species_order))
+
+
+urch_density_summary_3 <- urch_density_long_3 %>%
+  group_by(year, individual_species) %>%
+  summarise(
+    mean_value = mean(value),
+    sd_value = sd(value),
+    n = n(),
+    se_value = sd_value / sqrt(n),
+    .groups = "drop" 
+  )
+
+# Prepare data for tornado plot
+urch_density_tornado_3 <- urch_density_summary_3 %>%
+  mutate(
+    value_signed = ifelse(year == 2024, -mean_value, mean_value),
+    se_signed = ifelse(year == 2024, -se_value, se_value)
+  )
+
+# Tornado plot
+ggplot(urch_density_tornado_3, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(labels = abs, expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "#1f77b4")) +
+  labs(
+    title = "BAR -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85"))
+
+```
+###Stats (ANOVA)
+```{r}
+anova_check_log <- function(df) {
+  # ANOVA model for each species
+  aov_model <- aov(value ~ factor(year), data = df)
+  res <- residuals(aov_model)
+  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                        error = function(e) NA)
+  
+  # If assumptions fail, log-transform and rerun
+  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
+    df <- df %>% mutate(value = log(value + 1))
+    aov_model <- aov(value ~ factor(year), data = df)
+    res <- residuals(aov_model)
+    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
+    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
+                          error = function(e) NA)
+    transformed <- TRUE
+  } else {
+    transformed <- FALSE
+  }
+  
+  # Extract ANOVA results
+  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
+  f_val <- tidy_res$statistic
+  p_val <- tidy_res$p.value
+  
+  tibble(
+    individual_species = unique(df$individual_species),
+    shapiro_p = shapiro_p,
+    levene_p = levene_p,
+    transformed = transformed,
+    F_value = f_val,
+    p_value = p_val
+  )
+}
+
+# Apply function to all species
+anova_summary <- indv_long_bf %>%
+  group_by(individual_species) %>%
+  group_modify(~ anova_check_log(.x)) %>%
+  ungroup()
+
+# View results
+anova_summary
+
+# Format ANOVA summary for the table
+anova_table <- anova_summary %>%
+  dplyr::select(individual_species, F_value, p_value, transformed) %>%
+  mutate(p_value = signif(p_value, 3))  # Round p-values
+
+# Create a table figure
+ggtexttable(anova_table,
+            rows = NULL,       # remove row names
+            theme = ttheme("classic"))
+```
+
+
+  
+
 #FIG 4:
-
-
 ##4a: RDA for BAR -> INCIP
 ```{r}
 
@@ -1509,5 +2038,4 @@ set.seed(42)  # for reproducibility
 nmds <- metaMDS(algal_matrix, distance = "bray", k = 2, trymax = 100)
 
 nmds
-
 ```
