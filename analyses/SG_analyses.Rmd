@@ -75,13 +75,6 @@ print(quad_avgs)
 
 #now making a new column to represent urchin behavior i.e. how many urchins are actively grazing 
 
-quad_avgs1 <- quad_avgs %>%
-  mutate( purple_urchin_active_foraging_densitym2 = purple_urchin_densitym2 - purple_urchin_conceiledm2,
-    red_urchin_active_foraging_densitym2 = red_urchin_densitym2 - red_urchin_conceiledm2
-  ) %>%
-  mutate(total_urchin_densitym2 = purple_urchin_densitym2 + red_urchin_densitym2, 
-         total_urchin_foraging_densitym2 = purple_urchin_active_foraging_densitym2 + red_urchin_active_foraging_densitym2)
-  #separate purps and reds, start with just purps
 
 #averaging transects
 kelp_avgs <- kelp_data %>%
@@ -90,11 +83,6 @@ kelp_avgs <- kelp_data %>%
     across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
     .groups = "drop") 
 
-macro_avgs <- macro_data %>%
-  group_by(site, site_type, zone, survey_date) %>%
-  summarise( 
-    across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
-    .groups = "drop")
 
 
 ```
@@ -106,14 +94,12 @@ macro_avgs <- macro_data %>%
 ```{r}
 merged_data <- kelp_avgs %>%
   mutate(site = if_else(site == "RECO_04", "REC_04", site)) %>%
-  left_join(quad_avgs1, by = c("site", "site_type", "zone", "survey_date")) %>%
-  left_join(macro_avgs, by = c("site","site_type", "zone", "survey_date"))
+  left_join(quad_avgs, by = c("site", "site_type", "zone", "survey_date"))
 
 #creating a new column that just has years for future analysis  
 merged_data$year <- as.numeric(format(merged_data$survey_date, "%Y"))
   
 
-view(merged_data)
 ```
 
 #2024 data 
@@ -123,7 +109,7 @@ view(merged_data)
 year_one_data <- merged_data %>% 
   filter(year == 2024) %>%
   filter() %>%
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything())
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
 
 year_one_data[sapply(year_one_data, is.numeric)] <-
   lapply(year_one_data[sapply(year_one_data, is.numeric)],
@@ -152,7 +138,7 @@ year_one_data[cols_to_scale] <- lapply(year_one_data[cols_to_scale], function(x)
 names(year_one_data)[names(year_one_data) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model <- lda(site_type ~ macro_stipe_density_.x + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
 
 
 #lda figure
@@ -209,6 +195,56 @@ ggplot(coef_long, aes(x = reorder(variable, coefficient), y = coefficient, fill 
   ) +
   scale_fill_brewer(palette = "Set1")
 
+#aesthetically pleasing figure
+
+#renaming variables and selecting for strong coefficients
+rename_vars <- c(
+  "density_eisarb"        = "E. arborea",
+  "macj_densitym2"        = "M. pyrifera juvenile",
+  "lsetj_densitym2"       = "L. setchellii juvenile",
+  "lamr_densitym2"        = "Laminariales recruit", 
+  "ptej_densitym2"        = "P. californica juvenile", 
+  "density_ptecal"        = "P. californica", 
+  "cov_dictyoneurum_spp"  = "Dictyoneurum spp.", 
+  "cov_mac_holdfast_live" = "M. pyrifera holdfast", 
+  "macro_stipe_density_"= "M. pyrifera", 
+  "macr_densitym2"        = "M. pyrifera recruit", 
+  "density_nerlue"        = "N. luetkeana", 
+  "nerj_densitym2"        = "N. luetkeana juvenile"
+)
+
+coef_strong <- coef_long %>%
+  filter(abs(coefficient) > 1) %>%
+  mutate(
+    variable = recode_factor(variable, !!!rename_vars),
+    variable = reorder(variable, abs(coefficient))
+  )
+
+
+
+ggplot(coef_strong, aes(
+  x = variable,
+  y = coefficient,
+  fill = LD
+)) +
+  geom_bar(stat = "identity", position = "dodge", width = 0.7) +
+  coord_flip() +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "top",
+    axis.text.y = element_text(size = 12, face = "bold"),
+    axis.text.x = element_text(size = 12),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  ) +
+  labs(
+    title = "LDA Coefficients by Discriminant Function",
+    x = "Variable",
+    y = "Coefficient"
+  ) +
+  scale_fill_brewer(palette = "Set1")
+
 ```
 
 #FIG 1: LDA of 2024 Patch Discrimination
@@ -244,7 +280,7 @@ ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) 
 year_two_data <- merged_data %>% 
   filter(year == 2025) %>%
   filter() %>%
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything())
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything())
 
   
 # Identify columns that contain "20m2"
@@ -319,7 +355,6 @@ merged <- year_one_data %>%
     by = c("site", "zone", "site_type")
   )
 
-view(merged)
 cross_tab <- table(merged$site_type_pred_2024, merged$site_type_pred_2025)
 
 cross_tab
@@ -373,59 +408,15 @@ ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
 
 ```
 
-#Table 1:
-```{r}
-
-```
 
 
-
-```{r}
-library(dplyr)
-library(reshape2)
-library(ggplot2)
-library(viridis)
-
-# Make sure your data has site_type_pred_2024, site_type_pred_2025, and zone
-# Create a summarized table per zone
-cross_tab_zone <- merged %>%
-  dplyr::group_by(zone, site_type_pred_2024, site_type_pred_2025) %>%
-  dplyr::summarise(count = n(), .groups = "drop")
-
-# Plot faceted heatmap
-ggplot(cross_tab_zone, aes(x = site_type_pred_2024, y = site_type_pred_2025, fill = count)) +
-  geom_tile(color = "grey90", size = 0.3) +
-  geom_text(aes(label = count),
-            color = ifelse(cross_tab_zone$count > max(cross_tab_zone$count)/2, "white", "black"),
-            size = 4, fontface = "bold") +
-  scale_fill_viridis(option = "C", direction = -1, name = "Count") +
-  labs(
-    x = "Predicted 2024 Patch Type",
-    y = "Predicted 2025 Patch Type",
-    title = "Transition of Predicted Patch Types by Zone"
-  ) +
-  theme_minimal(base_size = 13) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold", size = 12),
-    axis.text.y = element_text(face = "bold", size = 12),
-    axis.title = element_text(face = "bold", size = 13),
-    plot.title = element_text(face = "bold", hjust = 0.5, size = 16, margin = margin(b = 10)),
-    legend.title = element_text(face = "bold", size = 12),
-    legend.text = element_text(size = 11),
-    panel.grid = element_blank()
-  ) +
-  facet_wrap(~ zone, scales = "free")  # facets by zone
-
-```
-
-#FIG 3: Comparing by groups
-#####Creating the df I'll need 
+#Creating Patch Transition DFs
 ```{r}
 library(dplyr)
 library(tidyr)
 
 merged_clean_data <- merged_data %>% 
-  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2.x, everything()) %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_20m2, everything()) %>%
   mutate(across(where(is.numeric), ~ replace_na(., 0))) %>%   # replace NAs with 0
   group_by(site, site_type, zone, year) %>%
   summarise(across(where(is.numeric), mean), .groups = "drop") %>%
@@ -458,612 +449,374 @@ pred_patch_data <- merged_clean_data %>%
   ) %>%
   dplyr::select(pred_patch_2024, pred_patch_2025, everything(), -site_type) #move to front and remove original site_type
 
-view(pred_patch_data)
 
 ####creating new df with patch transitions
-library(vegan)
-library(dplyr)
-
-#adding transition column 
 patch_trans_data <- pred_patch_data %>%
-  mutate(patch_transition = paste(pred_patch_2024, "→", pred_patch_2025)) %>%
-  dplyr::select(patch_transition, pred_patch_2024, pred_patch_2025, everything(), -latitude, -longitude)
+  mutate(
+    # assign the correct prediction for each year
+    pred_patch = case_when(
+      year == 2024 ~ as.character(pred_patch_2024),
+      year == 2025 ~ as.character(pred_patch_2025),
+      TRUE ~ NA_character_
+    ),
+    # create the transition column
+    patch_transition = paste(pred_patch_2024, "→", pred_patch_2025)
+  ) %>%
+  # drop the old wide prediction columns, keep everything else (including species)
+  dplyr::select(site, zone, year, pred_patch, patch_transition, everything(), -pred_patch_2024, -pred_patch_2025)
 
-view(patch_trans_data)
 
 ```
-#A: BAR -> INCIP
+#A) BAR -> INCIP
 ```{r}
 # Barren → Incipient
 bar_incip <- patch_trans_data %>%
   filter(str_detect(patch_transition, "BAR.*→ INCIP"))
-print(bar_incip)
-
+glimpse(bar_incip)
 ```
-##### Boxplot
-```{r}
-#creating functional groups
-
-functional_groups <- bar_incip %>%
-  group_by(patch_transition, site, zone, year) %>%
-  summarise(
-    first_stage = sum(cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red, na.rm = TRUE), 
-    second_stage = sum(cov_fleshy_red + cov_dictyota_dictyopteris + cov_desmarestia_spp + cov_dictyoneurum_spp, na.rm = TRUE), 
-    understory_recruits_juvs = sum(lamr_densitym2 + ptej_densitym2 + lsetj_densitym2, na.rm = TRUE),
-    understory_adults = sum(density_ptecal + density_eisarb + density_lamset, na.rm = TRUE), 
-    canopy_recruits_juv = sum(macr_densitym2 + macj_densitym2 + nerj_densitym2, na.rm = TRUE), 
-    canopy_adults = sum(macro_stipe_density_.x + density_nerlue, na.rm = TRUE),
-    purple_urchins = sum(purple_urchin_densitym2, na.rm = TRUE),
-    purple_urchin_conceiled = sum(purple_urchin_conceiledm2, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-
-#aggregating functional groups 
-functional_groups_agg <- functional_groups %>%
-  mutate(across(c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
-                  canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
-                ~ (.-mean(.))/sd(.)))
-
-#pivoting longer
-data_long <- functional_groups_agg %>%
-  pivot_longer(
-    cols = c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
-             canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
-    names_to = "functional_group",
-    values_to = "value"
-  )
-
-#turning functional groups into factors
-data_long <- data_long %>%
-  mutate(functional_group = factor(functional_group, 
-                                   levels = c("first_stage", "second_stage", 
-                                              "understory_recruits_juvs", "understory_adults", 
-                                              "canopy_recruits_juv", "canopy_adults", 
-                                              "purple_urchins", "purple_urchin_conceiled")))
-
-
-# Define stages for shaded backgrounds
-stages <- data.frame(
-  start = c(0.5, 2.5, 4.5, 6.5),
-  end   = c(2.5, 4.5, 6.5, 8.5),
-  stage = c("Early", "Understory", "Canopy", "Urchins")
-)
-
-
-# BOX PLOT WITH ALL FUNCTIONAL GROUPS
-ggplot(data_long, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95", "gray97", "gray95", "gray97"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5, 3.5, 5.5, 7.5), y = max(data_long$value) + 0.5,
-           label = stages$stage, fontface = "bold", size = 4)
-
-
-#JUST ALGAL GROUPS
-algal_groups <- data_long %>%
-  filter(!functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
-
-stages_algae <- data.frame(
-  start = c(0.5, 2.5, 4.5),
-  end   = c(2.5, 4.5, 6.5),
-  stage = c("Early", "Understory", "Canopy")
-)
-
-
-ggplot(algal_groups, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages_algae, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95", "gray97", "gray95"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5, 3.5, 5.5), y = max(data_long$value) + 0.5,
-           label = stages_algae$stage, fontface = "bold", size = 4)
-
-
-#JUST URCHIN GROUPS
-urchin_groups <- data_long %>%
-  filter(functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
-
-stages_urchin <- data.frame(
-  start = c(0.5),
-  end   = c(2.5),
-  stage = "Urchins"
-)
-
-
-ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages_urchin, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5), y = max(urchin_groups$value) + 0.5,
-           label = stages_urchin$stage, fontface = "bold", size = 4)
-```
-###Stats (ANOVA)
-```{r}
-# Columns for functional groups
-cols <- c("first_stage", "second_stage", "understory_recruits_juvs",
-          "understory_adults", "canopy_recruits_juv", "canopy_adults",
-          "purple_urchins", "purple_urchin_conceiled")
-
-# Prepare raw long-format data
-raw_groups <- functional_groups %>%
-  dplyr::select(site, zone, year, all_of(cols)) %>%
-  pivot_longer(
-    cols = all_of(cols),
-    names_to = "functional_group",
-    values_to = "value"
-  )
-
-# Function to check assumptions and run ANOVA, with optional log(x+1) transformation
-anova_check_log <- function(df) {
-  # Original ANOVA
-  aov_model <- aov(value ~ factor(year), data = df)
-  res <- residuals(aov_model)
-  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
-  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
-                        error = function(e) NA)
-  
-  # If assumptions fail, log-transform and rerun
-  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
-    df <- df %>% mutate(value = log(value + 1))
-    aov_model <- aov(value ~ factor(year), data = df)
-    res <- residuals(aov_model)
-    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
-    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
-                          error = function(e) NA)
-    transformed <- TRUE
-  } else {
-    transformed <- FALSE
-  }
-  
-  # Extract ANOVA results
-  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
-  f_val <- tidy_res$statistic
-  p_val <- tidy_res$p.value
-  
-  tibble(
-    functional_group = unique(df$functional_group),
-    shapiro_p = shapiro_p,
-    levene_p = levene_p,
-    transformed = transformed,
-    F_value = f_val,
-    p_value = p_val
-  )
-}
-
-# Apply function to all functional groups
-anova_summary <- raw_groups %>%
-  group_by(functional_group) %>%
-  group_modify(~ anova_check_log(.x)) %>%
-  ungroup()
-
-# View results
-anova_summary
-
-
-# Format ANOVA summary for the table
-anova_table <- anova_summary %>%
-  dplyr::select(functional_group, F_value, p_value, transformed) %>%
-  mutate(p_value = signif(p_value, 3))  # Round p-values
-
-# Create a table figure
-ggtexttable(anova_table,
-            rows = NULL,       # remove row names
-            theme = ttheme("classic"))
-
-```
-
-```{r}
-
-# Create significance labels based on p-value
-anova_summary <- anova_summary %>%
-  mutate(sig_label = case_when(
-    p_value <= 0.001 ~ "***",
-    p_value <= 0.01  ~ "**",
-    p_value <= 0.05  ~ "*",
-    TRUE             ~ ""
-  ))
-
-# Compute maximum y-value per functional group for annotation placement
-y_max <- data_long %>%
-  group_by(functional_group) %>%
-  summarise(y_pos = max(value) + 0.2, .groups = "drop")
-
-# Join y_max with significance labels
-sig_annot <- anova_summary %>%
-  left_join(y_max, by = "functional_group")
-
-# Boxplot with significance annotations
-ggplot(data_long, aes(x = functional_group, y = value, fill = factor(year))) +
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  geom_jitter(aes(color = factor(year)),
-              position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75),
-              size = 2) +
-  
-  # Add ANOVA significance annotations
-  geom_text(data = sig_annot, aes(x = functional_group, y = y_pos, label = sig_label),
-            inherit.aes = FALSE, vjust = 0) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  )
-
-```
-
-#B: INCIP -> FOR
+#B) INCIP -> FOR
 ```{r}
 # Barren → Incipient
 incip_for <- patch_trans_data %>%
   filter(str_detect(patch_transition, "INCIP.*→ FOR"))
 print(incip_for)
-
 ```
-### Boxplot
+#C) BAR -> FOR
 ```{r}
-#creating functional groups
-
-functional_groups_2 <- incip_for %>%
-  group_by(patch_transition, site, zone, year) %>%
-  summarise(
-    first_stage = sum(cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red, na.rm = TRUE), 
-    second_stage = sum(cov_fleshy_red + cov_dictyota_dictyopteris + cov_desmarestia_spp + cov_dictyoneurum_spp, na.rm = TRUE), 
-    understory_recruits_juvs = sum(lamr_densitym2 + ptej_densitym2 + lsetj_densitym2, na.rm = TRUE),
-    understory_adults = sum(density_ptecal + density_eisarb + density_lamset, na.rm = TRUE), 
-    canopy_recruits_juv = sum(macr_densitym2 + macj_densitym2 + nerj_densitym2, na.rm = TRUE), 
-    canopy_adults = sum(macro_stipe_density_.x + density_nerlue, na.rm = TRUE),
-    purple_urchins = sum(purple_urchin_densitym2, na.rm = TRUE),
-    purple_urchin_conceiled = sum(purple_urchin_conceiledm2, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-
-#aggregating functional groups 
-functional_groups_agg_2 <- functional_groups_2 %>%
-  mutate(across(c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
-                  canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
-                ~ (.-mean(.))/sd(.)))
-
-#pivoting longer
-data_long_2 <- functional_groups_agg_2 %>%
-  pivot_longer(
-    cols = c(first_stage, second_stage, understory_recruits_juvs, understory_adults, 
-             canopy_recruits_juv, canopy_adults, purple_urchins, purple_urchin_conceiled),
-    names_to = "functional_group",
-    values_to = "value"
-  )
-
-#turning functional groups into factors
-data_long_2 <- data_long_2 %>%
-  mutate(functional_group= factor(functional_group, 
-                                   levels = c("first_stage", "second_stage", 
-                                              "understory_recruits_juvs", "understory_adults", 
-                                              "canopy_recruits_juv", "canopy_adults", 
-                                              "purple_urchins", "purple_urchin_conceiled")))
-
-
-# Define stages for shaded backgrounds
-stages_2 <- data.frame(
-  start = c(0.5, 2.5, 4.5, 6.5),
-  end   = c(2.5, 4.5, 6.5, 8.5),
-  stage = c("Early", "Understory", "Canopy", "Urchins")
-)
-
-
-# BOX PLOT WITH ALL FUNCTIONAL GROUPS
-ggplot(data_long_2, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages_2, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95", "gray97", "gray95", "gray97"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5, 3.5, 5.5, 7.5), y = max(data_long$value) + 0.5,
-           label = stages_2$stage, fontface = "bold", size = 4)
-
-
-#JUST ALGAL GROUPS
-algal_groups <- data_long_2 %>%
-  filter(!functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
-
-stages_algae <- data.frame(
-  start = c(0.5, 2.5, 4.5),
-  end   = c(2.5, 4.5, 6.5),
-  stage = c("Early", "Understory", "Canopy")
-)
-
-
-ggplot(algal_groups, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages_algae, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95", "gray97", "gray95"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5, 3.5, 5.5), y = max(data_long$value) + 0.5,
-           label = stages_algae$stage, fontface = "bold", size = 4)
-
-
-#JUST URCHIN GROUPS
-urchin_groups <- data_long_2 %>%
-  filter(functional_group %in% c("purple_urchins", "purple_urchin_conceiled"))
-
-stages_urchin <- data.frame(
-  start = c(0.5),
-  end   = c(2.5),
-  stage = "Urchins"
-)
-
-
-ggplot(urchin_groups, aes(x = functional_group, y = value, fill = factor(year))) +
-  # Shaded bands for ecological stages
-  geom_rect(data = stages_urchin, 
-            aes(xmin = start, xmax = end, ymin = -Inf, ymax = Inf),
-            inherit.aes = FALSE,
-            fill = c("gray95"), alpha = 0.4) +
-  
-  geom_boxplot(width = 0.6, position = position_dodge(width = 0.75), outlier.shape = NA) +
-  
-  # Overlay points for transparency
-  geom_jitter(aes(color = factor(year)), position = position_jitterdodge(jitter.width = 0.1, dodge.width = 0.75), size = 2) +
-  
-  # Labels & theme
-  labs(
-    x = NULL,
-    y = "Standardized Value (z-score)",
-    fill = "Year",
-    color = "Year"
-  ) +
-  scale_fill_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  scale_color_manual(values = c("2024" = "#56B4E9", "2025" = "#E69F00")) +
-  
-  theme_minimal(base_size = 14) +
-  theme(
-    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold"),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "top",
-    panel.grid.major.x = element_blank(),
-    panel.grid.minor = element_blank(),
-    panel.grid.major.y = element_line(color = "gray85")
-  ) +
-  
-  # Optional: stage labels on top
-  annotate("text", x = c(1.5), y = max(urchin_groups$value) + 0.5,
-           label = stages_urchin$stage, fontface = "bold", size = 4)
+bar_for <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ FOR"))
+view(bar_for)
 ```
 
-###Stats (ANOVA)
+#SIMPER
+##A)
+###Z-scored all species
 ```{r}
-# Columns for functional groups
-cols <- c("first_stage", "second_stage", "understory_recruits_juvs",
-          "understory_adults", "canopy_recruits_juv", "canopy_adults",
-          "purple_urchins", "purple_urchin_conceiled")
+# Select numeric species/cover columns
+species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(bar_incip), value = TRUE)
+comm_scaled <- bar_incip[, species_cols] %>%
+  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
+  mutate(across(everything(), ~ replace_na(., 0))) 
 
-# Prepare raw long-format data
-raw_groups <- functional_groups_2 %>%
-  dplyr::select(site, zone, year, all_of(cols)) %>%
-  pivot_longer(
-    cols = all_of(cols),
-    names_to = "functional_group",
-    values_to = "value"
-  )
+# Grouping factor (you could use year or site if needed)
+group <- as.factor(bar_incip$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
 
-# Function to check assumptions and run ANOVA, with optional log(x+1) transformation
-anova_check_log <- function(df) {
-  # Original ANOVA
-  aov_model <- aov(value ~ factor(year), data = df)
-  res <- residuals(aov_model)
-  shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
-  levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
-                        error = function(e) NA)
-  
-  # If assumptions fail, log-transform and rerun
-  if(is.na(shapiro_p) | is.na(levene_p) | shapiro_p <= 0.05 | levene_p <= 0.05) {
-    df <- df %>% mutate(value = log(value + 1))
-    aov_model <- aov(value ~ factor(year), data = df)
-    res <- residuals(aov_model)
-    shapiro_p <- tryCatch(shapiro.test(res)$p.value, error = function(e) NA)
-    levene_p <- tryCatch(leveneTest(value ~ factor(year), data = df)$`Pr(>F)`[1], 
-                          error = function(e) NA)
-    transformed <- TRUE
-  } else {
-    transformed <- FALSE
-  }
-  
-  # Extract ANOVA results
-  tidy_res <- broom::tidy(aov_model) %>% filter(term == "factor(year)")
-  f_val <- tidy_res$statistic
-  p_val <- tidy_res$p.value
-  
-  tibble(
-    functional_group = unique(df$functional_group),
-    shapiro_p = shapiro_p,
-    levene_p = levene_p,
-    transformed = transformed,
-    F_value = f_val,
-    p_value = p_val
-  )
-}
 
-# Apply function to all functional groups
-anova_summary <- raw_groups %>%
-  group_by(functional_group) %>%
-  group_modify(~ anova_check_log(.x)) %>%
-  ungroup()
+# Run SIMPER
+sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
 
-# View results
-anova_summary
+# Summarize SIMPER results
+sim_summary <- summary(sim, ordered = TRUE, digits = 3)
 
-library(ggpubr)
+# View top contributing species
+sim_summary
+```
+```{r}
+# Convert SIMPER summary to a dataframe
+sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
+sim_df$species <- rownames(sim_df)  # add species column
+sim_df <- sim_df %>%
+  arrange(desc(average)) %>%  # sort by contribution
+  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
 
-# Format ANOVA summary for the table
-anova_table <- anova_summary %>%
-  dplyr::select(functional_group, F_value, p_value, transformed) %>%
-  mutate(p_value = signif(p_value, 3))  # Round p-values
+# --- 1️⃣ Create a top-10 table ---
+top_species <- sim_df %>% 
+  slice_head(n = 10) %>%
+  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
 
-# Create a table figure
-ggtexttable(anova_table,
-            rows = NULL,       # remove row names
-            theme = ttheme("classic"))
+print(top_species)  # view in console
 
+
+# Plot density contributions
+ggplot(top_species, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors: BAR → INCIP",
+       x = "Species (z-scored)",
+       y = "Average contribution") +
+  theme_minimal()
+```
+###Density species
+```{r}
+#just selecting for density species 
+density_cols <- grep("^density_|macro_stipe|m2", names(bar_incip), value = TRUE)
+
+#SIMPER on density
+comm_density <- bar_incip[, density_cols]
+group <- as.factor(bar_incip$year)  # comparing 2024 vs 2025
+
+sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
+sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
+
+# Convert to data frame
+sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`)
+sim_density_df$species <- rownames(sim_density_df)
+sim_density_df <- sim_density_df %>% arrange(desc(average))
+
+# Top 10 density contributors
+top_density <- sim_density_df %>% slice_head(n = 10)
+print(top_density)
+
+# Plot density contributions
+ggplot(top_density, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (density): BAR → INCIP",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
+
+```
+###Cover species
+```{r}
+#just selecting for % cover species
+cover_cols <- grep("^cov_", names(bar_incip), value = TRUE)
+
+# SIMPER on %cover
+comm_cover <- bar_incip[, cover_cols]
+group <- as.factor(bar_incip$year)  # comparing 2024 vs 2025
+
+sim_cover <- simper(comm_cover, group, permutations = 0, trace = FALSE)
+sim_cover_summary <- summary(sim_cover, ordered = TRUE, digits = 3)
+
+# Convert to data frame for table/plot
+sim_cover_df <- as.data.frame(sim_cover_summary$`2024_2025`)
+sim_cover_df$species <- rownames(sim_cover_df)
+sim_cover_df <- sim_cover_df %>% arrange(desc(average))
+
+# Top 10 %cover contributors
+top_cover <- sim_cover_df %>% slice_head(n = 10)
+print(top_cover)
+
+# Plot %cover contributions
+ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (%cover): BAR → INCIP",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
+```
+
+##B)
+###Z-scored all species
+```{r}
+# Select numeric species/cover columns
+species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(incip_for), value = TRUE)
+comm_scaled <- incip_for[, species_cols] %>%
+  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
+  mutate(across(everything(), ~ replace_na(., 0))) 
+
+# Grouping factor (you could use year or site if needed)
+group <- as.factor(incip_for$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
+
+
+# Run SIMPER
+sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
+
+# Summarize SIMPER results
+sim_summary <- summary(sim, ordered = TRUE, digits = 3)
+
+# View top contributing species
+sim_summary
+
+# Convert SIMPER summary to a dataframe
+sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
+sim_df$species <- rownames(sim_df)  # add species column
+sim_df <- sim_df %>%
+  arrange(desc(average)) %>%  # sort by contribution
+  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
+
+# --- 1️⃣ Create a top-10 table ---
+top_species <- sim_df %>% 
+  slice_head(n = 10) %>%
+  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
+
+print(top_species)  # view in console
+
+
+# Plot density contributions
+ggplot(top_species, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors: INCIP → FOR",
+       x = "Species (z-scored)",
+       y = "Average contribution") +
+  theme_minimal()
+```
+###Density species
+```{r}
+#just selecting for density species 
+density_cols <- grep("^density_|macro_stipe|m2", names(incip_for), value = TRUE)
+
+#SIMPER on density
+comm_density <- incip_for[, density_cols]
+group <- as.factor(incip_for$year)  # comparing 2024 vs 2025
+
+sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
+sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
+
+# Convert to data frame
+sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`)
+sim_density_df$species <- rownames(sim_density_df)
+sim_density_df <- sim_density_df %>% arrange(desc(average))
+
+# Top 10 density contributors
+top_density <- sim_density_df %>% slice_head(n = 10)
+print(top_density)
+
+# Plot density contributions
+ggplot(top_density, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (density): INCIP → FOR",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
+
+```
+###Cover species
+```{r}
+#just selecting for % cover species
+cover_cols <- grep("^cov_", names(incip_for), value = TRUE)
+
+# SIMPER on %cover
+comm_cover <- incip_for[, cover_cols]
+group <- as.factor(incip_for$year)  # comparing 2024 vs 2025
+
+sim_cover <- simper(comm_cover, group, permutations = 0, trace = FALSE)
+sim_cover_summary <- summary(sim_cover, ordered = TRUE, digits = 3)
+
+# Convert to data frame for table/plot
+sim_cover_df <- as.data.frame(sim_cover_summary$`2024_2025`)
+sim_cover_df$species <- rownames(sim_cover_df)
+sim_cover_df <- sim_cover_df %>% arrange(desc(average))
+
+# Top 10 %cover contributors
+top_cover <- sim_cover_df %>% slice_head(n = 10)
+print(top_cover)
+
+# Plot %cover contributions
+ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (%cover): INCIP → FOR",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
+```
+
+##C)
+###Z-scored all species
+```{r}
+# Select numeric species/cover columns
+species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(bar_for), value = TRUE)
+comm_scaled <- bar_for[, species_cols] %>%
+  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
+  mutate(across(everything(), ~ replace_na(., 0))) 
+
+# Grouping factor (you could use year or site if needed)
+group <- as.factor(bar_for$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
+
+
+# Run SIMPER
+sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
+
+# Summarize SIMPER results
+sim_summary <- summary(sim, ordered = TRUE, digits = 3)
+
+# View top contributing species
+sim_summary
+
+# Convert SIMPER summary to a dataframe
+sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
+sim_df$species <- rownames(sim_df)  # add species column
+sim_df <- sim_df %>%
+  arrange(desc(average)) %>%  # sort by contribution
+  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
+
+# --- 1️⃣ Create a top-10 table ---
+top_species <- sim_df %>% 
+  slice_head(n = 10) %>%
+  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
+
+print(top_species)  # view in console
+
+
+# Plot density contributions
+ggplot(top_species, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "coral2") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors: BAR → FOR",
+       x = "Species (z-scored)",
+       y = "Average contribution") +
+  theme_minimal()
+```
+###Density species
+```{r}
+#just selecting for density species 
+density_cols <- grep("^density_|macro_stipe|m2", names(bar_for), value = TRUE)
+
+#SIMPER on density
+comm_density <- bar_for[, density_cols]
+group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
+
+sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
+sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
+
+# Convert to data frame
+sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`)
+sim_density_df$species <- rownames(sim_density_df)
+sim_density_df <- sim_density_df %>% arrange(desc(average))
+
+# Top 10 density contributors
+top_density <- sim_density_df %>% slice_head(n = 10)
+print(top_density)
+
+# Plot density contributions
+ggplot(top_density, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "coral2") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (density): BAR → FOR",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
+
+```
+###Cover species
+```{r}
+#just selecting for % cover species
+cover_cols <- grep("^cov_", names(bar_for), value = TRUE)
+
+# SIMPER on %cover
+comm_cover <- bar_for[, cover_cols]
+group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
+
+sim_cover <- simper(comm_cover, group, permutations = 0, trace = FALSE)
+sim_cover_summary <- summary(sim_cover, ordered = TRUE, digits = 3)
+
+# Convert to data frame for table/plot
+sim_cover_df <- as.data.frame(sim_cover_summary$`2024_2025`)
+sim_cover_df$species <- rownames(sim_cover_df)
+sim_cover_df <- sim_cover_df %>% arrange(desc(average))
+
+# Top 10 %cover contributors
+top_cover <- sim_cover_df %>% slice_head(n = 10)
+print(top_cover)
+
+# Plot %cover contributions
+ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
+  geom_bar(stat = "identity", fill = "coral2") +
+  coord_flip() +
+  labs(title = "Top SIMPER contributors (%cover):  BAR → FOR",
+       x = "Species",
+       y = "Average contribution") +
+  theme_minimal()
 ```
 
 
-
-#FIG4: Comparing by species
-##A: BAR -> INCIP
+#Bar Graphs
+##A)
 ###Plot
 ```{r}
 
@@ -1373,7 +1126,7 @@ ggtexttable(anova_table,
 ```
 
 
-##B: INCIP -> FOR
+##B)
 ###Plot
 ```{r}
 
@@ -1688,7 +1441,7 @@ ggtexttable(anova_table,
 
 
 
-##C: BAR -> FOR
+##C)
 ```{r}
 bar_for <- patch_trans_data %>%
   filter(str_detect(patch_transition, "BAR.*→ FOR"))
