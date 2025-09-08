@@ -342,7 +342,9 @@ desired_order_2025 <- c("BAR", "INCIP", "FOR")
 cross_tab_melt$Var1 <- factor(cross_tab_melt$Var1, levels = desired_order_2024)
 cross_tab_melt$Var2 <- factor(cross_tab_melt$Var2, levels = desired_order_2025)
 
-my_colors <- rev(brewer.pal(11, "RdYlBu"))
+#map colors
+my_colors <- brewer.pal(11, "Blues")
+
 
 # Sleek publication-ready heatmap
 ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
@@ -370,6 +372,13 @@ ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
 
 
 ```
+
+#Table 1:
+```{r}
+
+```
+
+
 
 ```{r}
 library(dplyr)
