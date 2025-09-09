@@ -42,7 +42,7 @@ print(objs)
 
 View(kelp_data)
 
-# 1. Create new data frames
+# Create new data frames
 
 kelp_data <- kelp_data %>% # create new column for year in kelp_data
   mutate(year = year(survey_date))
@@ -50,22 +50,27 @@ kelp_data <- kelp_data %>% # create new column for year in kelp_data
 quad_data <- quad_data %>% # create new column for year in quad_data
   mutate(year = year(survey_date))
 
-recruit_sum <- # created new data frame to total recruits and juveniles + proportion of purps exposed
-  quad_data %>% 
-  mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>%
-  mutate(total_recruit = lamr + macr + macj + nerj + ptej + lsetj + eisj) %>%
-  group_by(year, site, site_type, zone, transect) %>%
-  summarise(total_recruit = sum(total_recruit, na.rm = TRUE), 
-            prop_exp = sum(prop_exp, na.rm = TRUE),
-            mean_urch_den = mean(purple_urchin_densitym2, na.rm = TRUE))
+#recruit_sum <- # created new data frame to total recruits and juveniles + proportion of purps exposed
+#  quad_data %>% 
+#  mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>%
+#  mutate(total_recruit = lamr + macr + macj + nerj + ptej + lsetj + eisj) %>%
+#  group_by(year, site, site_type, zone, transect) %>%
+#  summarise(total_recruit = sum(total_recruit, na.rm = TRUE), 
+#            mean_urch_prop = mean(prop_exp, na.rm = TRUE),
+#            mean_urch_den = mean(purple_urchin_densitym2, na.rm = TRUE))
 
-quad_sum <- # created new data frame with mean urch + purps exposed and combined macro data
+quad_sum <- # created new data frame with mean urch + purps exposed + recruits and combined macro data
   quad_data %>% 
   mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>% # calculated proportion of exposed urchins
+  mutate(exposed_urchin = purple_urchin_densitym2 - purple_urchin_conceiledm2) %>%
+  mutate(total_recruit = lamr + macr + macj + nerj + ptej + lsetj + eisj) %>%
   group_by(year, site, site_type, zone, transect) %>% 
   summarise(mean_urch_den = mean(purple_urchin_densitym2, na.rm = TRUE), # find means
             mean_urch_concealed = mean(purple_urchin_conceiledm2, na.rm = TRUE),
-            mean_urch_prop = mean(prop_exp, na.rm = TRUE)) %>%
+            total_exposed = sum(exposed_urchin, na.rm = TRUE),
+            mean_exposed = mean(exposed_urchin, na.rm = TRUE),
+            mean_urch_prop = mean(prop_exp, na.rm = TRUE),
+            total_recruit = sum(total_recruit, na.rm = TRUE)) %>%
   left_join(.,kelp_data, by = c("year", "site", "site_type", "zone", "transect")) # join kelp_data to quad_data
 
 
@@ -73,27 +78,96 @@ quad_sum <- # created new data frame with mean urch + purps exposed and combined
 
 # PLOTS
 
+###############################################################################
+
+# Question 1. Is there a correlation between purple sea urchin density and kelp 
+# density and recruitment?
+
 # 1. Number of Kelp Stipes vs Mean Urchin Density
 
-ggplot(quad_sum, aes(x = mean_urch_den, y = macro_stipe_density_20m2)) +
-  geom_point() +                                    # scatter plot
-  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
-  theme_minimal()
+ggplot(quad_sum, 
+       aes(x = mean_urch_den, y = macro_stipe_density_20m2)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$macro_stipe_density_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+#  facet_wrap(~site_type) + # adds site_type as a variable
+  labs(x = "Mean purple sea urchin density", y = "Total Macrocystis pyrifera stipes")
+
+# transforming data to see what happens
+
+ggplot(data = quad_sum, aes(x = mean_urch_den)) + #original histogram
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
+  labs(title= "", x= "", y="") +
+  theme_classic()
+
+ggplot(data = quad_sum, aes(x = macro_stipe_density_20m2)) + #original histogram
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
+  labs(title= "", x= "", y="") +
+  theme_classic()
+
+urchin_den_log <- # transform urchin and stipe data with log +1
+  quad_sum %>%
+  mutate(logUrchin = log(mean_urch_den + 1), logStipes = log(macro_stipe_density_20m2 + 1))
+
+ggplot(data = urchin_den_log, aes(x = logUrchin)) + # transformed log+1 histogram
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
+  labs(title= "", x= "", y="") +
+  theme_classic()
+
+ggplot(data = urchin_den_log, aes(x = logStipes)) + # transformed log+1 histogram
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
+  labs(title= "", x= "", y="") +
+  theme_classic()
+
+#ggplot(quad_sum, aes(x = mean_urch_den, y = macro_stipe_density_20m2)) +
+#  geom_point() +                                    # scatter plot
+#  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
+#  theme_minimal()
+
+ggplot(urchin_den_log, 
+       aes(x = logUrchin, y = logStipes)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$macro_stipe_density_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  labs(x = "Mean purple sea urchin density", y = "Total Macrocystis pyrifera stipes")
+
 
 # 2. Number of Plants vs Mean Urchin Density
 
-ggplot(quad_sum, aes(x = mean_urch_den, y = n_macro_plants_20m2)) +
-  geom_point() +                                    # scatter plot
-  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
-  theme_minimal()
+#ggplot(quad_sum, aes(x = mean_urch_den, y = n_macro_plants_20m2)) +
+#  geom_point() +                                    # scatter plot
+#  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
+#  theme_minimal()
 
-# 3. Number of Recruits vs Total Purple Urchins
+ggplot(quad_sum, 
+       aes(x = mean_urch_den, y = n_macro_plants_20m2)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$n_macro_plants_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+#  facet_wrap(~site_type) + # adds site_type as a variable
+  labs(x = "Mean purple sea urchin density", y = "Total Number of Macrocystis pyrifera plants")
 
-ggplot(recruit_sum %>% filter(purple_urchin_densitym2 < 100),
-       aes(x = purple_urchin_densitym2, y = total_recruit)) +
-  geom_point() +                                    # scatter plot
-  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
-  theme_minimal()
+
+
+# 3. Number of Recruits vs Mean Purple Urchins
+
+#ggplot(recruit_sum %>% filter(purple_urchin_densitym2 < 100),
+#       aes(x = purple_urchin_densitym2, y = total_recruit)) +
+#  geom_point() +                                    # scatter plot
+#  geom_smooth(method = "lm", se = TRUE, color = "red") + # linear regression line
+#  theme_minimal()
 
 ggplot(recruit_sum, 
        aes(x = mean_urch_den, y = total_recruit)) +
@@ -103,24 +177,25 @@ ggplot(recruit_sum,
               method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
               se = FALSE,
               color = "blue") + # negative exponential
-  theme_minimal()
+  theme_minimal() +
+#  facet_wrap(~site_type) +
+  labs(x = "Mean purple urchin density", y = "Total number of recruits and juveniles")
 
-
-## Transforming Data 
+# Transforming Data 
 
 ### Urch Density Variable
 
-ggplot(data = recruit_sum, aes(x = purple_urchin_densitym2)) + #original histogram
+ggplot(data = recruit_sum, aes(x = mean_urch_den)) + #original histogram
   geom_histogram(color = "darkblue", fill = "lightblue", bins = 4) +
   labs(title= "", x= "", y="") +
   theme_classic()
 
 urchin_den_log <- # transform data with log +1
   recruit_sum %>%
-  mutate(logUrchin = log(purple_urchin_densitym2 + 1))
+  mutate(logUrchin = log(mean_urch_den + 1))
 
 ggplot(data = urchin_den_log, aes(x = logUrchin)) + # transformed log+1 histogram
-  geom_histogram(color = "darkblue", fill = "lightblue", bins = 4) +
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
   labs(title= "", x= "", y="") +
   theme_classic()
 
@@ -141,7 +216,7 @@ recruit_data_log <- # transform data with log +1
 
 
 ggplot(data = recruit_data_log, aes(x = logRecruit)) + # transformed log+1 histogram
-  geom_histogram(color = "darkblue", fill = "lightblue", bins = 4) +
+  geom_histogram(color = "darkblue", fill = "lightblue", bins = 6) +
   labs(title= "", x= "", y="") +
   theme_classic()
 
@@ -176,40 +251,86 @@ ggplot(recruit_data_log, aes(x = logUrch, y = logRecruit)) +
 
 
 
-## Trying to fit nls () 
-
-# Fit negative exponential model
-
-exp_model <- nls(total_recruit ~ a * exp(-b * mean_urch_den),
-                 data = recruit_sum,
-                 start = list(a = max(recruit_sum$total_recruit, na.rm = TRUE), 
-                              b = 0.1))
-
-summary(exp_model)
-
-# Create prediction data across the observed urchin density
-
-newdata <- data.frame(mean_urch_den = seq(min(recruit_sum$mean_urch_den, na.rm = TRUE),
-                                                    max(recruit_sum$mean_urch_den, na.rm = TRUE),
-                                                    length.out = 200))
+###############################################################################
 
 
-newdata$pred <- predict(exp_model, newdata)
 
-# Plot -> looks the same as other ggplot :( 
+# Question 2. Is there a correlation between purple sea urchin behavior (active or passive grazing)
+# and kelp density and recruitment?
 
-ggplot(recruit_sum, aes(x = mean_urch_den, y = total_recruit)) +
+# 1. Total stipes vs exposed urchins
+
+ggplot(quad_sum, 
+       aes(x = mean_exposed, y = macro_stipe_density_20m2)) +
   geom_point() +
-  geom_line(data = newdata, aes(x = mean_urch_den, y = pred),
-            color = "red", size = 1) +
-  theme_minimal()
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$macro_stipe_density_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  labs(x = "Mean purple sea urchins exposed", y = "Total Macrocystis pyrifera stipes")
+
+#  facet_wrap(~site_type) + # adds site_type as a variable
+
+
+ggplot(quad_sum, 
+       aes(x = mean_urch_prop, y = macro_stipe_density_20m2)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$macro_stipe_density_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  labs(x = "Mean proportion of purple sea urchins exposed", y = "Total Macrocystis pyrifera stipes")
+
+
+# 2. Number of macro plants vs exposed urchins
+
+ggplot(quad_sum, 
+       aes(x = mean_exposed, y = n_macro_plants_20m2)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$n_macro_plants_20m2), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  labs(x = "Mean purple sea urchins exposed", y = "Total Macrocystis pyrifera plants")
+
+# 3. Recruits vs exposed urchins
+
+
+ggplot(recruit_sum, 
+       aes(x = mean_urch_prop, y = total_recruit)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+#   facet_wrap(~site_type) +
+  labs(x = "Mean proportion of purple urchins exposed", y = "Total number of recruits and juveniles")
+
+
+ggplot(quad_sum, 
+       aes(x = mean_exposed, y = total_recruit)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  #   facet_wrap(~site_type) +
+  labs(x = "Mean purple urchins exposed", y = "Total number of recruits and juveniles")
 
 
 
 
-
-
-
+###############################################################################
 # OLD PROJECT
 
 # Step 1: Make groupings to prep for normalizing data
