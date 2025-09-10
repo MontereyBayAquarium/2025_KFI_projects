@@ -88,27 +88,27 @@ p <- ggplot(diet_overall) +
 p
 
 ################################################################################
-# Star size frequency histogram
+# Star predation fq histogram
 
-ggplot(data = derm_merge, aes(x = size, weight = count)) + 
-  geom_histogram(binwidth = 1, color = "white", fill = "steelblue") +
-  labs(x = 'star_size_cm', y = 'star_count') + 
-  theme_minimal()
+derm_merge_predation <- filter(derm_merge, diet != "None") %>%
+  mutate(diet_condensed = recode(diet, "Barnacle" = "other_prey", "Chiton" = "other_prey", 
+                                 "Gastropod" = "other_prey", "Limpet" = "other_prey", 
+                                 "Other" = "other_prey", "Urchin" = "urchin"))
 
-################################################################################
-# Overlayed histogram with quartiles -> star size fq vs. urchin predation fq
+derm_size_avg <- aggregate(size ~ diet_condensed, data = derm_merge_predation, FUN = mean)
 
-# ggplot(data = derm_merge, aes(x = x)) + 
-  # geom_histogram(binwidth = 1, color = "white", fill = "steelblue") + 
-  # geom_vline(xintercept = qs, linetype = "dashed", color = "red", linewidth = 1) + 
-  # labs(x = "star_size", y = "predation_fq", 
-       # title = "predation fq relative to star size",
-       # subtitle = "red dashed lines = Q1, median, Q3")
-
-################################################################################
-# Overlayed histogram with quartiles -> urchin size fq vs. urchin predation fq
-
-
+ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed)) + 
+  geom_histogram(binwidth = 1, color = "white") + 
+  geom_vline(derm_size_avg, mapping = aes(xintercept = size, linetype = diet_condensed)) + 
+  scale_linetype(labs(title = "avg_star_size")) + 
+  scale_fill_manual(values = c("steelblue", "maroon"), labs("diet")) + 
+  labs(title = 'star_pred_fq', x = 'obs_star_size_cm', y = 'pred_fq') + 
+  theme(plot.title = element_text(hjust = 0.70), panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.background = element_blank(), 
+        legend.box.background = element_blank())
 
 ################################################################################
 # Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
