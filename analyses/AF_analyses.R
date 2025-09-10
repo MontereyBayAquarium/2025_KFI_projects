@@ -1,7 +1,8 @@
 # Aimee's script 
 
 install.packages("librarian")
-librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive")
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive",
+                 "viridis", "plotly", "hrbrmisc")
 
 install.packages("googledrive")
 library(googledrive)
@@ -326,6 +327,78 @@ ggplot(quad_sum,
   theme_minimal() +
   #   facet_wrap(~site_type) +
   labs(x = "Mean purple urchins exposed", y = "Total number of recruits and juveniles")
+
+
+
+################################################################################
+
+
+# QUESTION 3: Can these relationships be used as predictors for kelp forest recovery?
+
+
+# facet_wrap using site_type 
+
+ggplot(quad_sum, 
+       aes(x = mean_urch_den, y = total_recruit)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$total_recruit), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  facet_wrap(~site_type) +
+  labs(x = "Mean purple urchin density", y = "Total number of recruits and juveniles")
+
+ggplot(quad_sum, 
+       aes(x = mean_exposed, y = total_recruit)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential
+  theme_minimal() +
+  facet_wrap(~site_type) +
+  labs(x = "Mean purple urchins exposed", y = "Total number of recruits and juveniles")
+
+
+# bubble plot
+
+ggplot(quad_sum,
+       aes(x = mean_urch_den, 
+           y = macro_stipe_density_20m2, 
+           size = mean_exposed, 
+           fill = site_type)) +
+  geom_point(alpha = 0.5, shape = 21, color = "black") +
+  scale_fill_viridis_d(option = "plasma", name = "Site type") +
+  scale_size_continuous(range = c(2, 10), name = "Mean Exposed Urchins") +
+  theme_classic() +
+  labs(x = "Mean purple sea urchin density", 
+       y = "Total Stipe Density") +
+  theme(legend.position = "right") +
+  guides(fill = guide_legend(override.aes = list(size = 5)))
+
+
+ggplot(quad_sum,
+       aes(x = mean_urch_den, 
+           y = macro_stipe_density_20m2, 
+           size = mean_exposed, 
+           fill = site_type)) +
+  geom_point(alpha = 0.5, shape = 21, color = "black") +
+  scale_fill_manual(values = c("FOR" = "#009E73", 
+                               "BAR" = "#E69F00", 
+                               "INCIP" = "#0072B2")) +
+  scale_size_continuous(range = c(2, 10), name = "Mean Exposed Urchins") +
+  theme_classic() +
+  labs(x = "Mean purple sea urchin density",
+       y = "Total stipe density",
+       fill = "Site Type") +
+  theme(legend.position = "right") +
+  guides(fill = guide_legend(override.aes = list(size = 5)))
+
+
+
 
 
 
