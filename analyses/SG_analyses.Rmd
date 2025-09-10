@@ -488,54 +488,22 @@ bar_for <- patch_trans_data %>%
 view(bar_for)
 ```
 
+#D)
+```{r}
+#Comparing BAR patches which stayed BAR to transitioned BAR patches
+
+bar_incip_for <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ (BAR|INCIP|FOR)")) %>%
+  filter(year == "2025") %>%
+  group_by(site, zone, year, pred_patch) %>%
+  dplyr::select(c(-patch_transition, -latitude, -longitude, -n_macro_plants_))
+
+```
+
+
+
 #SIMPER
 ##A)
-###Z-scored all species
-```{r}
-# Select numeric species/cover columns
-species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(bar_incip), value = TRUE)
-comm_scaled <- bar_incip[, species_cols] %>%
-  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
-  mutate(across(everything(), ~ replace_na(., 0))) 
-
-# Grouping factor (you could use year or site if needed)
-group <- as.factor(bar_incip$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
-
-
-# Run SIMPER
-sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
-
-# Summarize SIMPER results
-sim_summary <- summary(sim, ordered = TRUE, digits = 3)
-
-# View top contributing species
-sim_summary
-```
-```{r}
-# Convert SIMPER summary to a dataframe
-sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
-sim_df$species <- rownames(sim_df)  # add species column
-sim_df <- sim_df %>%
-  arrange(desc(average)) %>%  # sort by contribution
-  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
-
-# --- 1️⃣ Create a top-10 table ---
-top_species <- sim_df %>% 
-  slice_head(n = 10) %>%
-  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
-
-print(top_species)  # view in console
-
-
-# Plot density contributions
-ggplot(top_species, aes(x = reorder(species, average), y = average)) +
-  geom_bar(stat = "identity", fill = "steelblue") +
-  coord_flip() +
-  labs(title = "Top SIMPER contributors: BAR → INCIP",
-       x = "Species (z-scored)",
-       y = "Average contribution") +
-  theme_minimal()
-```
 ###Density species
 ```{r}
 #just selecting for density species 
@@ -599,51 +567,6 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
 ```
 
 ##B)
-###Z-scored all species
-```{r}
-# Select numeric species/cover columns
-species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(incip_for), value = TRUE)
-comm_scaled <- incip_for[, species_cols] %>%
-  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
-  mutate(across(everything(), ~ replace_na(., 0))) 
-
-# Grouping factor (you could use year or site if needed)
-group <- as.factor(incip_for$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
-
-
-# Run SIMPER
-sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
-
-# Summarize SIMPER results
-sim_summary <- summary(sim, ordered = TRUE, digits = 3)
-
-# View top contributing species
-sim_summary
-
-# Convert SIMPER summary to a dataframe
-sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
-sim_df$species <- rownames(sim_df)  # add species column
-sim_df <- sim_df %>%
-  arrange(desc(average)) %>%  # sort by contribution
-  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
-
-# --- 1️⃣ Create a top-10 table ---
-top_species <- sim_df %>% 
-  slice_head(n = 10) %>%
-  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
-
-print(top_species)  # view in console
-
-
-# Plot density contributions
-ggplot(top_species, aes(x = reorder(species, average), y = average)) +
-  geom_bar(stat = "identity", fill = "forestgreen") +
-  coord_flip() +
-  labs(title = "Top SIMPER contributors: INCIP → FOR",
-       x = "Species (z-scored)",
-       y = "Average contribution") +
-  theme_minimal()
-```
 ###Density species
 ```{r}
 #just selecting for density species 
@@ -684,7 +607,7 @@ cover_cols <- grep("^cov_", names(incip_for), value = TRUE)
 comm_cover <- incip_for[, cover_cols]
 group <- as.factor(incip_for$year)  # comparing 2024 vs 2025
 
-sim_cover <- simper(comm_cover, group, permutations = 0, trace = FALSE)
+sim_cover <- simper(comm_cover, group, permutations = 999, trace = FALSE)
 sim_cover_summary <- summary(sim_cover, ordered = TRUE, digits = 3)
 
 # Convert to data frame for table/plot
@@ -707,51 +630,6 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
 ```
 
 ##C)
-###Z-scored all species
-```{r}
-# Select numeric species/cover columns
-species_cols <- grep("^density_|^cov_|macro_stipe|m2", names(bar_for), value = TRUE)
-comm_scaled <- bar_for[, species_cols] %>%
-  mutate(across(everything(), ~ . / max(., na.rm = TRUE))) %>%
-  mutate(across(everything(), ~ replace_na(., 0))) 
-
-# Grouping factor (you could use year or site if needed)
-group <- as.factor(bar_for$year)  # e.g., compare 2024 vs 2025 within BAR → INCIP
-
-
-# Run SIMPER
-sim <- simper(comm_scaled, group, permutations = 0, trace = FALSE)
-
-# Summarize SIMPER results
-sim_summary <- summary(sim, ordered = TRUE, digits = 3)
-
-# View top contributing species
-sim_summary
-
-# Convert SIMPER summary to a dataframe
-sim_df <- as.data.frame(sim_summary$`2024_2025`)  # adjust the contrast name if different
-sim_df$species <- rownames(sim_df)  # add species column
-sim_df <- sim_df %>%
-  arrange(desc(average)) %>%  # sort by contribution
-  mutate(cumsum = cumsum(average))  # recalc cumulative if needed
-
-# --- 1️⃣ Create a top-10 table ---
-top_species <- sim_df %>% 
-  slice_head(n = 10) %>%
-  dplyr::select(species, average, sd, ratio, ava, avb, cumsum)
-
-print(top_species)  # view in console
-
-
-# Plot density contributions
-ggplot(top_species, aes(x = reorder(species, average), y = average)) +
-  geom_bar(stat = "identity", fill = "coral2") +
-  coord_flip() +
-  labs(title = "Top SIMPER contributors: BAR → FOR",
-       x = "Species (z-scored)",
-       y = "Average contribution") +
-  theme_minimal()
-```
 ###Density species
 ```{r}
 #just selecting for density species 
@@ -761,7 +639,7 @@ density_cols <- grep("^density_|macro_stipe|m2", names(bar_for), value = TRUE)
 comm_density <- bar_for[, density_cols]
 group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
 
-sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
+sim_density <- simper(comm_density, group, permutations = 999, trace = FALSE)
 sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
 
 # Convert to data frame
@@ -785,6 +663,7 @@ ggplot(top_density, aes(x = reorder(species, average), y = average)) +
 ```
 ###Cover species
 ```{r}
+glimpse(bar_for)
 #just selecting for % cover species
 cover_cols <- grep("^cov_", names(bar_for), value = TRUE)
 
@@ -792,8 +671,9 @@ cover_cols <- grep("^cov_", names(bar_for), value = TRUE)
 comm_cover <- bar_for[, cover_cols]
 group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
 
-sim_cover <- simper(comm_cover, group, permutations = 0, trace = FALSE)
+sim_cover <- simper(comm_cover, group, permutations = 999, trace = FALSE)
 sim_cover_summary <- summary(sim_cover, ordered = TRUE, digits = 3)
+
 
 # Convert to data frame for table/plot
 sim_cover_df <- as.data.frame(sim_cover_summary$`2024_2025`)
@@ -813,6 +693,54 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
        y = "Average contribution") +
   theme_minimal()
 ```
+
+
+#NMDS
+##D)
+```{r}
+view(comm)
+library(dplyr)
+
+
+
+#community (species density and cover) data
+comm <- bar_incip_for[, c(5, 8, 10:11, 13:14, 21, 23:26, 28:37, 39:50)]
+
+
+# Remove rows that are all zeros
+comm_clean <- comm[rowSums(comm != 0) > 0, ]
+
+#turn into community matrix 
+m_comm = as.matrix(comm_clean)
+
+# Run NMDS
+set.seed(123)
+nmds <- metaMDS(comm_clean, distance = "bray", autotransform = TRUE)
+nmds
+
+plot(nmds)
+ordiplot(nmds, type = "text")
+
+ordiplot(nmds, type="n")
+points(nmds, display="sites", col=pred_patch)
+
+
+#environmental data (herbivores, reef complexity)
+env <- bar_incip_for %>%
+  group_by(site, zone, year, pred_patch) %>%
+  dplyr::select(7, 15:20, 28:29)
+
+#convert com to a matrix
+m_com = as.matrix(com)
+
+#nmds code
+set.seed(123)
+nmds = metaMDS(m_com, distance = "bray")
+nmds
+```
+
+
+
 
 
 #Bar Graphs
