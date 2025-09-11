@@ -488,7 +488,7 @@ bar_for <- patch_trans_data %>%
 view(bar_for)
 ```
 
-#D)
+#D)BAR25 -> INCIP25, FOR25
 ```{r}
 #Comparing BAR patches which stayed BAR to transitioned BAR patches
 
@@ -498,6 +498,7 @@ bar_incip_for <- patch_trans_data %>%
   group_by(site, zone, year, pred_patch) %>%
   dplyr::select(c(-patch_transition, -latitude, -longitude, -n_macro_plants_))
 
+glimpse(bar_incip_for)
 ```
 
 
@@ -695,49 +696,80 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
 ```
 
 
-#NMDS
+#RDA 
 ##D)
 ```{r}
-view(comm)
-library(dplyr)
+# Load libraries
+library(vegan)
+library(ggplot2)
+library(ggrepel)
 
+# --- 1. Prepare community matrix ---
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr_densitym2",
+  "macr_densitym2", "macj_densitym2", "nerj_densitym2", "ptej_densitym2",
+  "lsetj_densitym2", "eisj_densitym2",
+  grep("^cov_", names(df), value = TRUE)
+)
 
+comm_matrix <- bar_incip_for[, comm_cols]
 
-#community (species density and cover) data
-comm <- bar_incip_for[, c(5, 8, 10:11, 13:14, 21, 23:26, 28:37, 39:50)]
+# Hellinger transform to downweight zeros
+comm_hellinger <- decostand(comm_matrix, method = "hellinger")
 
+# --- 2. Prepare environmental variables ---
+bar_incip_for$zone <- as.factor(bar_incip_for$zone)
+bar_incip_for$pred_patch <- as.factor(bar_incip_for$pred_patch)
 
-# Remove rows that are all zeros
-comm_clean <- comm[rowSums(comm != 0) > 0, ]
+env_vars <- c("risk", "relief", "purple_urchin_densitym2", "purple_urchin_conceiledm2",
+              "tegula_densitym2", "pomaulax_densitym2", "zone")
+env_matrix <- bar_incip_for[, env_vars]
 
-#turn into community matrix 
-m_comm = as.matrix(comm_clean)
+# --- 3. Run RDA ---
+rda_model <- rda(comm_hellinger ~ risk + relief + purple_urchin_densitym2 +
+                 purple_urchin_conceiledm2 + tegula_densitym2 + pomaulax_densitym2 + zone,
+                 data = env_matrix)
 
-# Run NMDS
-set.seed(123)
-nmds <- metaMDS(comm_clean, distance = "bray", autotransform = TRUE)
-nmds
+# --- 4. Extract scores for plotting ---
+# Sample sites
+site_scores <- as.data.frame(scores(rda_model, display="sites", scaling=2))
+site_scores$sample <- rownames(site_scores)
+site_scores$pred_patch <- bar_incip_for$pred_patch
 
-plot(nmds)
-ordiplot(nmds, type = "text")
+# Species scores
+species_scores <- as.data.frame(scores(rda_model, display="species", scaling=2))
+species_scores$species <- rownames(species_scores)
 
-ordiplot(nmds, type="n")
-points(nmds, display="sites", col=pred_patch)
+# Environmental vectors
+env_scores <- as.data.frame(scores(rda_model, display="bp", scaling=2))
+env_scores$variable <- rownames(env_scores)
 
+# --- 5. Plot using ggplot2 ---
+ggplot() +
+  # Sites colored by zone
+  geom_point(data=site_scores, aes(x=RDA1, y=RDA2, color=pred_patch), size=3) +
+  # Species names
+  geom_text_repel(data=species_scores, aes(x=RDA1, y=RDA2, label=species),
+                  color="black", size=3) +
+  # Environmental arrows
+  geom_segment(data=env_scores, aes(x=0, y=0, xend=RDA1, yend=RDA2),
+               arrow=arrow(length=unit(0.3,"cm")), color="red") +
+  geom_text_repel(data=env_scores, aes(x=RDA1, y=RDA2, label=variable),
+                  color="red", size=3) +
+  theme_minimal() +
+  labs(title="RDA Biplot: Community composition vs Environmental variables",
+       x="RDA1", y="RDA2") +
+  scale_color_brewer(palette="Set1") +
+  theme(legend.position="right")
 
-#environmental data (herbivores, reef complexity)
-env <- bar_incip_for %>%
-  group_by(site, zone, year, pred_patch) %>%
-  dplyr::select(7, 15:20, 28:29)
-
-#convert com to a matrix
-m_com = as.matrix(com)
-
-#nmds code
-set.seed(123)
-nmds = metaMDS(m_com, distance = "bray")
-nmds
 ```
+```{r}
+anova(rda_model, by="terms")
+```
+
 
 
 
@@ -1683,49 +1715,3 @@ ggtexttable(anova_table,
             theme = ttheme("classic"))
 ```
 
-
-  
-
-#FIG 4:
-##4a: RDA for BAR -> INCIP
-```{r}
-
-# Barren → Incipient
-bar_incip <- patch_trans_data %>%
-  filter(str_detect(patch_transition, "BAR.*→ INCIP"))
-
-
-#isolate algal species
-algal_cols <- c(
-  "cov_articulated_coralline", "cov_crustose_coralline",
-  "cov_encrusting_red", "cov_fleshy_red", "cov_lam_holdfast_live",
-  "cov_mac_holdfast_live", "cov_dictyoneurum_spp",
-  "cov_desmarestia_spp", "cov_stephanocystis",  "macro_stipe_density_.x", "density_ptecal", "density_nerlue", "density_lamset", 
-    "density_eisarb", 
-    "lamr_densitym2", "macr_densitym2", "macj_densitym2", "nerj_densitym2", 
-    "ptej_densitym2", "lsetj_densitym2")
-
-
-#log + 1 transform 
-bar_incip_log <- bar_incip %>%
-  mutate(across(all_of(algal_cols), ~ log1p(.)))
-
-
-bar_incip_long <- bar_incip_log %>%
-  pivot_longer(
-    cols = all_of(algal_cols),
-    names_to = "species",
-    values_to = "log_cover"
-  )
-
-
-# Create matrix: rows = samples, columns = algal species
-algal_matrix <- bar_incip_log %>%
-  dplyr::select(all_of(algal_cols))
-
-# Run NMDS using Bray-Curtis distance
-set.seed(42)  # for reproducibility
-nmds <- metaMDS(algal_matrix, distance = "bray", k = 2, trymax = 100)
-
-nmds
-```
