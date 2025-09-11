@@ -55,11 +55,11 @@ derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_s
 derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
 
 derm_merge <- rbind(derm_recovery, derm_margin) %>%
-  mutate(urchin_size = ifelse(urchin_size =="NA", NA,urchin_size),
-         urchin_size = ifelse(urchin_size == "NULL",NA, urchin_size))
+  mutate(urchin_size = ifelse(urchin_size == "NA", NA, urchin_size),
+         urchin_size = ifelse(urchin_size == "NULL", NA, urchin_size))
 
 ################################################################################
-# Plot diet composition
+# Fig. 1 - Plot diet composition
 
 p <- ggplot(diet_overall) +
   geom_rect(aes(xmin = xmin, xmax = xmax, ymin = 0, ymax = 1, fill = diet), color = "white") +
@@ -88,7 +88,8 @@ p <- ggplot(diet_overall) +
 p
 
 ################################################################################
-# Star predation fq histogram
+# Fig. 3 - Star size vs. predation fq histogram -> compared size of stars eating other prey vs. 
+# size of stars eating urchins -> urchin-eaters are larger on average
 
 derm_merge_predation <- filter(derm_merge, diet != "None") %>%
   mutate(diet_condensed = recode(diet, "Barnacle" = "other_prey", "Chiton" = "other_prey", 
@@ -111,27 +112,38 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
         legend.box.background = element_blank())
 
 ################################################################################
-# Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
+# Fig. 4 - Dot plot: star size vs. urchin size
+
+ggplot(derm_merge, aes(x = size, y = urchin_size)) + 
+  geom_point()
+
+################################################################################
+# Fig. 5 - 
+
+
+
+################################################################################
+# Fig. 2 - Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
 
 derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
-ggplot(subset(derm_merge, !(diet %in% c("None", "Other"))), 
+ggplot(subset(derm_merge, !(diet %in% c("Other", "None"))), 
        aes(x = size_bin, y = count, fill = diet)) + 
   geom_bar(stat = "identity", position = "fill") + 
-  labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
+  labs(title = "Diet composition of different Dermasterias size classes", x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
   scale_fill_brewer(palette = "Set2") + 
   theme_minimal()
 
 ################################################################################
 # Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
 
-derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+# derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
-ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) + 
-  geom_bar(stat = "identity", position = "fill") + 
-  labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
-  scale_fill_brewer(palette = "Set2") + 
-  theme_minimal()
+# ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) + 
+  # geom_bar(stat = "identity", position = "fill") + 
+  # labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
+  # scale_fill_brewer(palette = "Set2") + 
+  # theme_minimal()
 
 ################################################################################
 # Export
