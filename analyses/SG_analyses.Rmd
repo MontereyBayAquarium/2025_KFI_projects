@@ -58,10 +58,6 @@ quad_transect_avgs <- quad_data %>%
     .groups = "drop"
   )
 
-
-# View result
-print(quad_transect_avgs)
-
 #now averaging per survey 
 quad_avgs <- quad_transect_avgs %>%
   group_by(site, site_type, zone, survey_date) %>%
@@ -73,8 +69,6 @@ quad_avgs <- quad_transect_avgs %>%
 # View result
 print(quad_avgs)
 
-#now making a new column to represent urchin behavior i.e. how many urchins are actively grazing 
-
 
 #averaging transects
 kelp_avgs <- kelp_data %>%
@@ -83,7 +77,7 @@ kelp_avgs <- kelp_data %>%
     across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
     .groups = "drop") 
 
-
+print(kelp_avgs)
 
 ```
 
@@ -93,13 +87,19 @@ kelp_avgs <- kelp_data %>%
 
 ```{r}
 merged_data <- kelp_avgs %>%
-  mutate(site = if_else(site == "RECO_04", "REC_04", site)) %>%
-  left_join(quad_avgs, by = c("site", "site_type", "zone", "survey_date"))
+  # Keep coordinates from kelp_avgs
+  left_join(
+    quad_avgs %>% dplyr::select(-latitude, -longitude),  # drop coords from quad_avgs before join
+    by = c("site", "site_type", "zone", "survey_date")
+  ) %>%
+  mutate(year = as.numeric(format(survey_date, "%Y")))
+
 
 #creating a new column that just has years for future analysis  
 merged_data$year <- as.numeric(format(merged_data$survey_date, "%Y"))
-  
 
+  
+glimpse(merged_data)
 ```
 
 #2024 data 
@@ -117,8 +117,11 @@ year_one_data[sapply(year_one_data, is.numeric)] <-
 
 year_one_data %>%
   group_by(site, site_type, zone, year) %>%
-  summarise(across(where(is.numeric), mean, na.rm = TRUE), .groups = "drop")
-  
+  summarise(
+    across(where(is.numeric), \(x) mean(x, na.rm = TRUE)),
+    .groups = "drop"
+  )
+
 ```
 
 
@@ -138,7 +141,7 @@ year_one_data[cols_to_scale] <- lapply(year_one_data[cols_to_scale], function(x)
 names(year_one_data)[names(year_one_data) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + purple_urchin_conceiledm2 + lamr_densitym2 + macr_densitym2 + macj_densitym2 + nerj_densitym2 + ptej_densitym2 + lsetj_densitym2  + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin + purple_urchin_conceiledm2 + lamr + macr + macj + nerj + ptej + lsetj + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
 
 
 #lda figure
@@ -200,17 +203,18 @@ ggplot(coef_long, aes(x = reorder(variable, coefficient), y = coefficient, fill 
 #renaming variables and selecting for strong coefficients
 rename_vars <- c(
   "density_eisarb"        = "E. arborea",
-  "macj_densitym2"        = "M. pyrifera juvenile",
-  "lsetj_densitym2"       = "L. setchellii juvenile",
-  "lamr_densitym2"        = "Laminariales recruit", 
-  "ptej_densitym2"        = "P. californica juvenile", 
+  "macj"        = "M. pyrifera juvenile",
+  "lsetj"       = "L. setchellii juvenile",
+  "lamr"        = "Laminariales recruit", 
+  "ptej"        = "P. californica juvenile", 
   "density_ptecal"        = "P. californica", 
   "cov_dictyoneurum_spp"  = "Dictyoneurum spp.", 
   "cov_mac_holdfast_live" = "M. pyrifera holdfast", 
   "macro_stipe_density_"= "M. pyrifera", 
-  "macr_densitym2"        = "M. pyrifera recruit", 
+  "macr"        = "M. pyrifera recruit", 
   "density_nerlue"        = "N. luetkeana", 
-  "nerj_densitym2"        = "N. luetkeana juvenile"
+  "nerj"        = "N. luetkeana juvenile", 
+  "density_lamset" = "L. setchellii"
 )
 
 coef_strong <- coef_long %>%
@@ -355,6 +359,8 @@ merged <- year_one_data %>%
     by = c("site", "zone", "site_type")
   )
 
+view(merged)
+
 cross_tab <- table(merged$site_type_pred_2024, merged$site_type_pred_2025)
 
 cross_tab
@@ -498,7 +504,7 @@ bar_incip_for <- patch_trans_data %>%
   group_by(site, zone, year, pred_patch) %>%
   dplyr::select(c(-patch_transition, -latitude, -longitude, -n_macro_plants_))
 
-glimpse(bar_incip_for)
+print(bar_incip_for)
 ```
 
 
@@ -709,9 +715,9 @@ comm_cols <- c(
   "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
   "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
   "density_lamstump", "density_macstump",
-  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr_densitym2",
-  "macr_densitym2", "macj_densitym2", "nerj_densitym2", "ptej_densitym2",
-  "lsetj_densitym2", "eisj_densitym2",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj",
   grep("^cov_", names(df), value = TRUE)
 )
 
@@ -724,12 +730,12 @@ comm_hellinger <- decostand(comm_matrix, method = "hellinger")
 bar_incip_for$zone <- as.factor(bar_incip_for$zone)
 bar_incip_for$pred_patch <- as.factor(bar_incip_for$pred_patch)
 
-env_vars <- c("risk", "relief", "purple_urchin_densitym2", "purple_urchin_conceiledm2",
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2", "purple_urchin_conceiledm2",
               "tegula_densitym2", "pomaulax_densitym2", "zone")
 env_matrix <- bar_incip_for[, env_vars]
 
 # --- 3. Run RDA ---
-rda_model <- rda(comm_hellinger ~ risk + relief + purple_urchin_densitym2 +
+rda_model <- rda(comm_hellinger ~ risk_index + relief_cm + purple_urchin_densitym2 + red_urchin_densitym2+
                  purple_urchin_conceiledm2 + tegula_densitym2 + pomaulax_densitym2 + zone,
                  data = env_matrix)
 
@@ -784,8 +790,8 @@ anova(rda_model, by="terms")
 individual_sp <- bar_incip %>%
   group_by(patch_transition, zone, site, year) %>%
   summarise(across(
-    c(macro_stipe_density_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
-      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+    c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
+      density_ptecal, ptej, lamr, density_lamset, lsetj,
       purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
@@ -793,16 +799,16 @@ individual_sp <- bar_incip %>%
     .names = "{.col}"
   )) %>%
   rename(
-    macrocystis_adults = macro_stipe_density_.x,
-    macrocystis_juveniles = macj_densitym2,
-    macrocystis_recruits = macr_densitym2,
+    macrocystis_adults = macro_stipe_density_,
+    macrocystis_juveniles = macj,
+    macrocystis_recruits = macr,
     nereocystis_adults = density_nerlue,
-    nereocystis_juveniles = nerj_densitym2,
+    nereocystis_juveniles = nerj,
     pterygophora_adults = density_ptecal,
-    pterygophora_juveniles = ptej_densitym2,
-    laminariales_spp_recruits = lamr_densitym2,
+    pterygophora_juveniles = ptej,
+    laminariales_spp_recruits = lamr,
     lam_setchellii_adults = density_lamset,
-    lam_setchellii_juveniles = lsetj_densitym2,
+    lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
     conceiled_purple_urchins = purple_urchin_conceiledm2,
     articulated_coralline = cov_articulated_coralline,
@@ -1094,8 +1100,8 @@ ggtexttable(anova_table,
 individual_sp_for <- incip_for %>%
   group_by(patch_transition, zone, site, year) %>%
   summarise(across(
-    c(macro_stipe_density_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
-      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+    c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
+      density_ptecal, ptej, lamr, density_lamset, lsetj,
       purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
@@ -1103,16 +1109,16 @@ individual_sp_for <- incip_for %>%
     .names = "{.col}"
   )) %>%
   rename(
-    macrocystis_adults = macro_stipe_density_.x,
-    macrocystis_juveniles = macj_densitym2,
-    macrocystis_recruits = macr_densitym2,
+    macrocystis_adults = macro_stipe_density_,
+    macrocystis_juveniles = macj,
+    macrocystis_recruits = macr,
     nereocystis_adults = density_nerlue,
-    nereocystis_juveniles = nerj_densitym2,
+    nereocystis_juveniles = nerj,
     pterygophora_adults = density_ptecal,
-    pterygophora_juveniles = ptej_densitym2,
-    laminariales_spp_recruits = lamr_densitym2,
+    pterygophora_juveniles = ptej,
+    laminariales_spp_recruits = lamr,
     lam_setchellii_adults = density_lamset,
-    lam_setchellii_juveniles = lsetj_densitym2,
+    lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
     conceiled_purple_urchins = purple_urchin_conceiledm2,
     articulated_coralline = cov_articulated_coralline,
@@ -1411,8 +1417,8 @@ bar_for <- patch_trans_data %>%
 individual_sp_bf <- bar_for %>%
   group_by(patch_transition, zone, site, year) %>%
   summarise(across(
-    c(macro_stipe_density_.x, macj_densitym2, macr_densitym2, density_nerlue, nerj_densitym2,
-      density_ptecal, ptej_densitym2, lamr_densitym2, density_lamset, lsetj_densitym2,
+    c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
+      density_ptecal, ptej, lamr, density_lamset, lsetj,
       purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
@@ -1420,16 +1426,16 @@ individual_sp_bf <- bar_for %>%
     .names = "{.col}"
   )) %>%
   rename(
-    macrocystis_adults = macro_stipe_density_.x,
-    macrocystis_juveniles = macj_densitym2,
-    macrocystis_recruits = macr_densitym2,
+    macrocystis_adults = macro_stipe_density_,
+    macrocystis_juveniles = macj,
+    macrocystis_recruits = macr,
     nereocystis_adults = density_nerlue,
-    nereocystis_juveniles = nerj_densitym2,
+    nereocystis_juveniles = nerj,
     pterygophora_adults = density_ptecal,
-    pterygophora_juveniles = ptej_densitym2,
-    laminariales_spp_recruits = lamr_densitym2,
+    pterygophora_juveniles = ptej,
+    laminariales_spp_recruits = lamr,
     lam_setchellii_adults = density_lamset,
-    lam_setchellii_juveniles = lsetj_densitym2,
+    lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
     conceiled_purple_urchins = purple_urchin_conceiledm2,
     articulated_coralline = cov_articulated_coralline,
