@@ -1,4 +1,4 @@
-# Keenan reconciling dermy data by himself!
+# Keenan reconciling dermy data by himself
 
 rm(list=ls())
 
