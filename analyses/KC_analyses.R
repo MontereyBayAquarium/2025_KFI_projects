@@ -17,6 +17,17 @@ margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1LB_ze2e68
                               sheet = 5) %>% clean_names()
 
 ################################################################################
+# Merge data
+
+derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
+
+derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
+
+derm_merge <- rbind(derm_recovery, derm_margin) %>%
+  mutate(urchin_size = ifelse(urchin_size == "NA", NA, urchin_size),
+         urchin_size = ifelse(urchin_size == "NULL", NA, urchin_size))
+
+################################################################################
 # Load packages, data, set dir
 
 # Prep data
@@ -46,17 +57,6 @@ margin_diet_overall <- margin_derm_raw %>%
     xmax = cumsum(prop),
     xmid = (xmin + xmax) / 2                   # center label
   )
-
-################################################################################
-# Merge data
-
-derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
-
-derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
-
-derm_merge <- rbind(derm_recovery, derm_margin) %>%
-  mutate(urchin_size = ifelse(urchin_size == "NA", NA, urchin_size),
-         urchin_size = ifelse(urchin_size == "NULL", NA, urchin_size))
 
 ################################################################################
 # Fig. 1 - Plot diet composition
@@ -92,19 +92,19 @@ p
 # size of stars eating urchins -> urchin-eaters are larger on average
 
 derm_merge_predation <- filter(derm_merge, diet != "None") %>%
-  mutate(diet_condensed = recode(diet, "Barnacle" = "other_prey", "Chiton" = "other_prey", 
-                                 "Gastropod" = "other_prey", "Limpet" = "other_prey", 
-                                 "Other" = "other_prey", "Urchin" = "urchin"))
+  mutate(diet_condensed = recode(diet, "Barnacle" = "Other Prey", "Chiton" = "Other Prey", 
+                                 "Gastropod" = "Other Prey", "Limpet" = "Other Prey", 
+                                 "Other" = "Other Prey", "Urchin" = "Urchin"))
 
 derm_size_avg <- aggregate(size ~ diet_condensed, data = derm_merge_predation, FUN = mean)
 
 ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed)) + 
   geom_histogram(binwidth = 1, color = "white") + 
   geom_vline(derm_size_avg, mapping = aes(xintercept = size, linetype = diet_condensed)) + 
-  scale_linetype(labs(title = "avg_star_size")) + 
-  scale_fill_manual(values = c("steelblue", "maroon"), labs("diet")) + 
-  labs(title = 'star_pred_fq', x = 'obs_star_size_cm', y = 'pred_fq') + 
-  theme(plot.title = element_text(hjust = 0.70), panel.background = element_blank(),
+  scale_linetype(labs(title = "Average Star Size")) + 
+  scale_fill_manual(values = c("steelblue", "maroon"), labs("Diet")) + 
+  labs(title = 'Predation frequency of actively foraging Dermasterias', x = 'Size (cm)', y = 'Predation Frequency') + 
+  theme(plot.title = element_text(hjust = 0.1), panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
