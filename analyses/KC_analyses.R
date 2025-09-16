@@ -178,7 +178,7 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
 ################################################################################
 # Asking R to do math for me
 
-
+mean(derm_merge_urchin$urchin_size)
 
 ################################################################################
 # Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
