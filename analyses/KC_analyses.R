@@ -147,13 +147,19 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
         legend.box.background = element_blank())
 
 ################################################################################
-# Fig. 4 - Dot plot: star size vs. urchin size
+# Fig. 4 - Scatterplot of star size frequency vs. urchin size frequency
 
-ggplot(derm_merge, aes(x = size, y = urchin_size)) + 
-  geom_point()
+derm_merge_urchin <- derm_merge %>%
+  filter(diet == "Urchin")
+  
 
 ################################################################################
 # Fig. 5 - 
+
+
+
+################################################################################
+# Asking R to do math for me
 
 
 
