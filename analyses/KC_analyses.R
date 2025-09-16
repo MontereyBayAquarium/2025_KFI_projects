@@ -147,16 +147,33 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
         legend.box.background = element_blank())
 
 ################################################################################
-# Fig. 4 - Scatterplot of star size frequency vs. urchin size frequency
+# Boxplot of star size frequency vs. urchin size frequency
 
-derm_merge_urchin <- derm_merge %>%
-  filter(diet == "Urchin")
-  
+# Filter urchin eaters
+ # derm_merge_urchin <- derm_merge %>%
+ # filter(diet == "Urchin")
+
+# Create size classes
+ # derm_merge_urchin$star_size_class <- 
+ # ceiling(derm_merge_urchin$size/10)
+
+# Create boxplot
+ # p <- ggplot(derm_merge_urchin, 
+            # aes(x = as.factor(star_size_class), 
+                # y = urchin_size)) + 
+  # geom_boxplot()
+
+# p
 
 ################################################################################
-# Fig. 5 - 
+# Scatterplot of star size frequency vs. urchin size frequency
 
+# p <- ggplot(derm_merge_urchin,
+            # aes(x = size, 
+                # y = urchin_size)) + 
+  # geom_point()
 
+# p
 
 ################################################################################
 # Asking R to do math for me
