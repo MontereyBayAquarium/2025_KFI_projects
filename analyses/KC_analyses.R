@@ -28,9 +28,9 @@ derm_merge <- rbind(derm_recovery, derm_margin) %>%
          urchin_size = ifelse(urchin_size == "NULL", NA, urchin_size))
 
 ################################################################################
-# Load packages, data, set dir
+# Prep data for Fig. 1
 
-# Prep data
+# Recovery diet
 
 diet_overall <- derm_merge %>%
   filter(!is.na(diet), diet != "None") %>%
@@ -81,11 +81,29 @@ p <- ggplot(diet_overall) +
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
     panel.grid = element_blank(),
-    plot.title = element_text(size=10),
-    legend.text = element_text(size=7)
+    plot.title = element_text(size = 14, hjust = 0.1),
+    legend.text = element_text(size = 7)
   )
 
 p
+
+################################################################################
+# Fig. 2 - Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
+
+derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+
+ggplot(subset(derm_merge, !(diet %in% c("None"))), 
+       aes(x = size_bin, y = count, fill = diet)) + 
+  geom_bar(stat = "identity", position = "fill") + 
+  labs(title = "Diet composition of different Dermasterias size classes", x = "Dermasterias size (binned, cm)", 
+       y = "Proportion of diet", fill = "Diet") + 
+  scale_fill_brewer(palette = "Set2") + 
+  theme(plot.title = element_text(size = 14, hjust = 0.1), panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.background = element_blank(), 
+        legend.box.background = element_blank())
 
 ################################################################################
 # Fig. 3 - Star size vs. predation fq histogram -> compared size of stars eating other prey vs. 
@@ -93,9 +111,9 @@ p
 
 derm_merge_predation <- filter(derm_merge, diet != "None") %>%
   mutate(diet_condensed = recode(diet, "Barnacle" = "Other Prey", "Chiton" = "Other Prey", 
-                                 "Gastropod" = "Other Prey", "Limpet" = "Other Prey", 
+                                 "Gastropod" = "Other Prey", "Limpet" = "Other Prey",
                                  "Other" = "Other Prey", "Urchin" = "Urchin"))
-
+                                 
 derm_size_avg <- aggregate(size ~ diet_condensed, data = derm_merge_predation, FUN = mean)
 
 ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed)) + 
@@ -103,8 +121,8 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
   geom_vline(derm_size_avg, mapping = aes(xintercept = size, linetype = diet_condensed)) + 
   scale_linetype(labs(title = "Average Star Size")) + 
   scale_fill_manual(values = c("steelblue", "maroon"), labs("Diet")) + 
-  labs(title = 'Predation frequency of actively foraging Dermasterias', x = 'Size (cm)', y = 'Predation Frequency') + 
-  theme(plot.title = element_text(hjust = 0.1), panel.background = element_blank(),
+  labs(title = 'Predation frequency of actively foraging Dermasterias', x = 'Star Size (cm)', y = 'Predation Frequency') + 
+  theme(plot.title = element_text(size = 14, hjust = 0.1), panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
@@ -121,18 +139,6 @@ ggplot(derm_merge, aes(x = size, y = urchin_size)) +
 # Fig. 5 - 
 
 
-
-################################################################################
-# Fig. 2 - Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
-
-derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
-
-ggplot(subset(derm_merge, !(diet %in% c("Other", "None"))), 
-       aes(x = size_bin, y = count, fill = diet)) + 
-  geom_bar(stat = "identity", position = "fill") + 
-  labs(title = "Diet composition of different Dermasterias size classes", x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
-  scale_fill_brewer(palette = "Set2") + 
-  theme_minimal()
 
 ################################################################################
 # Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
