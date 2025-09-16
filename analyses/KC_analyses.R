@@ -93,12 +93,17 @@ p
 derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
 
 ggplot(subset(derm_merge, !(diet %in% c("None"))), 
-       aes(x = size_bin, y = count, fill = diet)) + 
-  geom_bar(stat = "identity", position = "fill") + 
-  labs(title = "Diet composition of different Dermasterias size classes", x = "Dermasterias size (binned, cm)", 
+       aes(x = size_bin, 
+           y = count, 
+           fill = diet)) + 
+  geom_bar(stat = "identity", 
+           position = "fill") + 
+  labs(title = "Diet composition of different Dermasterias size classes", 
+       x = "Dermasterias size (binned, cm)", 
        y = "Proportion of diet", fill = "Diet") + 
   scale_fill_brewer(palette = "Set2") + 
-  theme(plot.title = element_text(size = 14, hjust = 0.1), panel.background = element_blank(),
+  theme(plot.title = element_text(size = 14, hjust = 0.1), 
+        panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
@@ -110,19 +115,30 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
 # size of stars eating urchins -> urchin-eaters are larger on average
 
 derm_merge_predation <- filter(derm_merge, diet != "None") %>%
-  mutate(diet_condensed = recode(diet, "Barnacle" = "Other Prey", "Chiton" = "Other Prey", 
-                                 "Gastropod" = "Other Prey", "Limpet" = "Other Prey",
-                                 "Other" = "Other Prey", "Urchin" = "Urchin"))
+  mutate(diet_condensed = recode(diet, 
+                                 "Barnacle" = "Other Prey", 
+                                 "Chiton" = "Other Prey", 
+                                 "Gastropod" = "Other Prey", 
+                                 "Limpet" = "Other Prey",
+                                 "Other" = "Other Prey", 
+                                 "Urchin" = "Urchin"))
                                  
 derm_size_avg <- aggregate(size ~ diet_condensed, data = derm_merge_predation, FUN = mean)
 
 ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed)) + 
-  geom_histogram(binwidth = 1, color = "white") + 
-  geom_vline(derm_size_avg, mapping = aes(xintercept = size, linetype = diet_condensed)) + 
+  geom_histogram(binwidth = 1, 
+                 color = "white") + 
+  geom_vline(derm_size_avg, 
+             mapping = aes(xintercept = size, 
+                           linetype = diet_condensed)) + 
   scale_linetype(labs(title = "Average Star Size")) + 
-  scale_fill_manual(values = c("steelblue", "maroon"), labs("Diet")) + 
-  labs(title = 'Predation frequency of actively foraging Dermasterias', x = 'Star Size (cm)', y = 'Predation Frequency') + 
-  theme(plot.title = element_text(size = 14, hjust = 0.1), panel.background = element_blank(),
+  scale_fill_manual(values = c("steelblue", "maroon"), 
+                    labs("Diet")) + 
+  labs(title = 'Predation frequency of actively foraging Dermasterias', 
+       x = 'Star Size (cm)', 
+       y = 'Predation Frequency') + 
+  theme(plot.title = element_text(size = 14, hjust = 0.1), 
+        panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
