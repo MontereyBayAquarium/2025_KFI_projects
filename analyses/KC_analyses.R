@@ -100,7 +100,8 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
            position = "fill") + 
   labs(title = "Diet composition of different Dermasterias size classes", 
        x = "Dermasterias size (binned, cm)", 
-       y = "Proportion of diet", fill = "Diet") + 
+       y = "Proportion of diet", 
+       fill = "Diet") + 
   scale_fill_brewer(palette = "Set2") + 
   theme(plot.title = element_text(size = 14, hjust = 0.1), 
         panel.background = element_blank(),
