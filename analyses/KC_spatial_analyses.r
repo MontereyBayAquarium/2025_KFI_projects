@@ -1,6 +1,6 @@
-###################################################
-### Spatial patterns of Dermasterias occurrence ###
-###################################################
+#################################################################
+### Spatial patterns of Dermasterias occurrence and predation ###
+#################################################################
 
 rm(list=ls())
 
@@ -65,6 +65,18 @@ view(derm_site_pred)
 derm_site_urchin <- filter(derm_recovery_spatial, 
                            diet == "Urchin")
 
+# looking at size and site
+
+derm_site_size <- derm_recovery_spatial %>% 
+  select(site_type, size)
+
+# looking and diet and size
+
+derm_diet_size <- derm_recovery_spatial  %>% 
+  select(size, diet) %>% 
+  filter(!(diet %in% 
+             c("None")))
+
 # Visualization (recovery) ------------------------------------------------
 
 # site occurrence bar plot
@@ -103,6 +115,21 @@ ggplot(derm_site_urchin,
   scale_fill_brewer(palette = "Set2") + 
   theme_minimal()
 
+# Site-size boxplot
+
+ggplot(derm_site_size, 
+       aes(x = site_type, 
+           y = size)) + 
+  geom_boxplot() + 
+  theme_minimal()
+
+# Diet-size boxplot
+
+ggplot(derm_diet_size, 
+       aes(x = diet, 
+           y = size)) + 
+  geom_boxplot() + 
+  theme_minimal()
 
 # Supplemental figures (recovery) for practice talk -----------------------
 
@@ -123,7 +150,7 @@ ggplot(derm_depth_size,
            y = size)) + 
   geom_point() + 
   geom_smooth(method = "lm") + 
-  labs(x = "Depth observed", 
+  labs(x = "Depth observed (m)", 
        y = "Star size (cm)", 
        title = "Dermasterias size across depth")
   theme_minimal()
