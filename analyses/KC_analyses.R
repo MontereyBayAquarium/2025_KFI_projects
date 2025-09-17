@@ -76,9 +76,9 @@ p <- ggplot(diet_overall) +
     title = "Diet composition of actively foraging Dermasterias",
     x = "Proportion",
     y = NULL,
-    fill = "Diet"
+    fill = "Diet", 
+    caption = "Source: J.G. Smith"
   ) +
-  theme_minimal() +
   theme(
     axis.text.y = element_blank(),
     axis.ticks.y = element_blank(),
@@ -92,26 +92,29 @@ p
 ################################################################################
 # Fig. 2 - Stacked bar -> shows how diet varies with star size - problem = needs to be equal number of observations per quartile
 
-derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+derm_merge$size_class <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 10))
 
 ggplot(subset(derm_merge, !(diet %in% c("None"))), 
-       aes(x = size_bin, 
+       aes(x = size_class, 
            y = count, 
            fill = diet)) + 
   geom_bar(stat = "identity", 
            position = "fill") + 
   labs(title = "Diet composition of different Dermasterias size classes", 
-       x = "Dermasterias size (binned, cm)", 
+       x = "Star size (cm)", 
        y = "Proportion of diet", 
        fill = "Diet") + 
   scale_fill_brewer(palette = "Set2") + 
-  theme(plot.title = element_text(size = 14, hjust = 0.1), 
-        panel.background = element_blank(),
-        plot.background = element_blank(),
-        panel.grid.major = element_blank(), 
-        panel.grid.minor = element_blank(), 
-        legend.background = element_blank(), 
-        legend.box.background = element_blank())
+  theme(
+    plot.title = element_text(size = 14, hjust = 0.1), 
+    panel.background = element_blank(),
+    plot.background = element_blank(),
+    panel.grid.major = element_blank(), 
+    panel.grid.minor = element_blank(), 
+    legend.background = element_blank(), 
+    legend.box.background = element_blank(), 
+    legend.text = element_text(size = 7)
+  )
 
 ################################################################################
 # Fig. 3 - Star size vs. predation fq histogram -> compared size of stars eating other prey vs. 
@@ -119,11 +122,11 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
 
 derm_merge_predation <- filter(derm_merge, diet != "None") %>%
   mutate(diet_condensed = recode(diet, 
-                                 "Barnacle" = "Other Prey", 
-                                 "Chiton" = "Other Prey", 
-                                 "Gastropod" = "Other Prey", 
-                                 "Limpet" = "Other Prey",
-                                 "Other" = "Other Prey", 
+                                 "Barnacle" = "Other prey", 
+                                 "Chiton" = "Other prey", 
+                                 "Gastropod" = "Other prey", 
+                                 "Limpet" = "Other prey",
+                                 "Other" = "Other prey", 
                                  "Urchin" = "Urchin"))
                                  
 derm_size_avg <- aggregate(size ~ diet_condensed, data = derm_merge_predation, FUN = mean)
@@ -134,53 +137,109 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
   geom_vline(derm_size_avg, 
              mapping = aes(xintercept = size, 
                            linetype = diet_condensed)) + 
-  scale_linetype(labs(title = "Average Star Size")) + 
-  scale_fill_manual(values = c("steelblue", "maroon"), 
-                    labs("Diet")) + 
+  scale_linetype(labs(title = "Average star size")) + 
+  scale_fill_brewer(palette = "Set2", 
+                    labs("Diet")) +  
   labs(title = 'Predation frequency of actively foraging Dermasterias', 
-       x = 'Star Size (cm)', 
-       y = 'Predation Frequency') + 
+       x = 'Star size (cm)', 
+       y = 'Predation frequency') + 
   theme(plot.title = element_text(size = 14, hjust = 0.1), 
         panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
         legend.background = element_blank(), 
-        legend.box.background = element_blank())
+        legend.box.background = element_blank(), 
+        legend.text = element_text(size = 7))
 
 ################################################################################
-# Boxplot of star size frequency vs. urchin size frequency
+# Wrangling
 
-# Filter urchin eaters
- # derm_merge_urchin <- derm_merge %>%
- # filter(diet == "Urchin")
-
-# Create size classes
- # derm_merge_urchin$star_size_class <- 
- # ceiling(derm_merge_urchin$size/10)
-
-# Create boxplot
- # p <- ggplot(derm_merge_urchin, 
-            # aes(x = as.factor(star_size_class), 
-                # y = urchin_size)) + 
-  # geom_boxplot()
-
-# p
+derm_merge_urchin <- filter(derm_merge, 
+                            diet == "Urchin") # filter for just urchin eaters
 
 ################################################################################
-# Scatterplot of star size frequency vs. urchin size frequency
+# Visualization
 
-# p <- ggplot(derm_merge_urchin,
-            # aes(x = size, 
-                # y = urchin_size)) + 
-  # geom_point()
+# scatterplot of star size vs urchin size (all urchin eaters)
 
-# p
+ggplot(derm_merge_urchin, aes(x = size, 
+                              y = urchin_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Star size (cm)", 
+       y = "Urchin size (cm)", 
+       title = "Dermasterias size relative to urchin size") + 
+  theme_minimal()
+
+# scatterplot of star size vs urchin size (only size class 1)
+
+derm_merge_urchin1 <- filter(derm_merge, 
+                             diet == "Urchin", 
+                             size_class == "(0,10]") # filter for size class 1 
+
+ggplot(derm_merge_urchin1, aes(x = size, 
+                               y = urchin_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Star size", 
+       y = "Urchin size", 
+       title = "Star size relative to urchin size") + 
+  scale_color_brewer(palette = "Dark2")
+
+# scatterplot of star size vs urchin size (only size class 2)
+
+derm_merge_urchin2 <- filter(derm_merge, 
+                             diet == "Urchin", 
+                             size_class == "(10,20]") # filter for size class 2 
+
+ggplot(derm_merge_urchin2, aes(x = size, 
+                               y = urchin_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Star size", 
+       y = "Urchin size", 
+       title = "Star size relative to urchin size") + 
+  scale_color_brewer(palette = "Dark2")
+
+# scatterplot of star size vs urchin size (only size class 3)
+
+derm_merge_urchin3 <- filter(derm_merge, 
+                             diet == "Urchin", 
+                             size_class == "(20,30]") # filter for size class 3 
+
+ggplot(derm_merge_urchin3, aes(x = size, 
+                               y = urchin_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Star size", 
+       y = "Urchin size", 
+       title = "Star size relative to urchin size") + 
+  scale_color_brewer(palette = "Dark2")
+
+# Boxplots: size class vs. urchin size
+
+derm_merge_urchin$size_class <- cut(derm_merge_urchin$size, breaks = seq(0, max(derm_merge$size), by = 10))
+# change size class to by 10
+
+ggplot(derm_merge_urchin, aes(x = size_class, 
+                              y = urchin_size)) + 
+  geom_boxplot(show.legend = FALSE) +
+  labs(x = "Star size class (cm)", 
+       y = "Urchin size (cm)", 
+       title = "Dermasterias size class relative to urchin size") + 
+  theme_minimal()
+
+################################################################################
+# New question: how does diet "richness" change with size? do larger stars eat fewer types of prey?
+
+
+
 
 ################################################################################
 # Asking R to do math for me
 
-mean(derm_merge_urchin$urchin_size)
+
 
 ################################################################################
 # Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
