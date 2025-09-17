@@ -68,6 +68,7 @@ derm_site_urchin <- filter(derm_recovery_spatial,
 # Visualization (recovery) ------------------------------------------------
 
 # site occurrence bar plot
+
 ggplot(derm_site_type, 
        aes(x = site_type)) + 
   geom_bar(show.legend = "FALSE") + 
@@ -102,11 +103,41 @@ ggplot(derm_site_urchin,
   scale_fill_brewer(palette = "Set2") + 
   theme_minimal()
 
-# Final figures (recovery) ------------------------------------------------
 
+# Supplemental figures (recovery) for practice talk -----------------------
 
+# site occurrence bar plot
+ggplot(derm_site_type, 
+       aes(x = site_type, 
+           fill = site_type)) + 
+  geom_bar(show.legend = "FALSE") + 
+  labs(x = "Site type", 
+       y = "Dermasterias count", 
+       title = "Dermasterias site occurrence frequency") + 
+  scale_fill_brewer(palette = "Set2")
+  theme_minimal()
+  
+# size at depth scatterplot
+ggplot(derm_depth_size, 
+       aes(x = depth, 
+           y = size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Depth observed", 
+       y = "Star size (cm)", 
+       title = "Dermasterias size across depth")
+  theme_minimal()
 
-
+# bar plot of site-specific urchin predation
+ggplot(derm_site_urchin, 
+       aes(x = site_type, 
+           fill = site_type)) + 
+  geom_bar(show.legend = FALSE) + 
+  scale_fill_brewer(palette = "Set2") + 
+  labs(x = "Site type", 
+       y = "Urchin-eating stars observed", 
+       title = "Site-specific urchin predation by Dermasterias")
+  theme_minimal()
 
 # Asking R to do math for me (nicely) -------------------------------------
 
