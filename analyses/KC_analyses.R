@@ -12,16 +12,16 @@ librarian::shelf(tidyverse, ggplot2, janitor, readxl, googlesheets4)
 
 gs4_auth()
 
-derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1i9rHc8EAjMcqUqUDwjHtGhytUdG49VTSG9vfKmDPerQ/edit?gid=0#gid=0",
-                       sheet = 4) %>% clean_names()
+recovery_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1CDyHJqlKW5uRpg2Y9a7cfW5_a-5n_OkGv_RbiEKGDnA/edit?gid=344647275#gid=344647275",
+                       sheet = 2) %>% clean_names()
 
-margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/1LB_ze2e68ZI7by8-uT1JNsLxEcNZBZF6jEuoWI1xLIU/edit?gid=1363312898#gid=1363312898", 
-                              sheet = 5) %>% clean_names()
+margin_derm_raw <- read_sheet("https://docs.google.com/spreadsheets/d/17nqbsYx7L1kJ9hBbrU5GtaVjnZ1drI9uCs7adlb5x8g/edit?gid=931069509#gid=931069509", 
+                              sheet = 2) %>% clean_names()
 
 ################################################################################
 # Merge data
 
-derm_recovery <- derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
+derm_recovery <- recovery_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
 
 derm_margin <- margin_derm_raw %>% dplyr::select(species, size, count, diet, urchin_size)
 
@@ -100,7 +100,7 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
            fill = diet)) + 
   geom_bar(stat = "identity", 
            position = "fill") + 
-  labs(title = "Diet composition of different Dermasterias size classes", 
+  labs(title = "Diet composition across Dermasterias size classes", 
        x = "Star size (cm)", 
        y = "Proportion of diet", 
        fill = "Diet") + 
@@ -158,10 +158,15 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
 derm_merge_urchin <- filter(derm_merge, 
                             diet == "Urchin") # filter for just urchin eaters
 
+# filter for all other prey
+derm_merge_other <- derm_merge_predation %>% 
+  filter(!(diet %in% 
+             c("Urchin")))
+
 ################################################################################
 # Visualization
 
-# scatterplot of star size vs urchin size (all urchin eaters)
+# scatterplot: star size vs. urchin size (all urchin eaters)
 
 ggplot(derm_merge_urchin, aes(x = size, 
                               y = urchin_size)) + 
@@ -172,52 +177,7 @@ ggplot(derm_merge_urchin, aes(x = size,
        title = "Dermasterias size relative to urchin size") + 
   theme_minimal()
 
-# scatterplot of star size vs urchin size (only size class 1)
-
-derm_merge_urchin1 <- filter(derm_merge, 
-                             diet == "Urchin", 
-                             size_class == "(0,10]") # filter for size class 1 
-
-ggplot(derm_merge_urchin1, aes(x = size, 
-                               y = urchin_size)) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  labs(x = "Star size", 
-       y = "Urchin size", 
-       title = "Star size relative to urchin size") + 
-  scale_color_brewer(palette = "Dark2")
-
-# scatterplot of star size vs urchin size (only size class 2)
-
-derm_merge_urchin2 <- filter(derm_merge, 
-                             diet == "Urchin", 
-                             size_class == "(10,20]") # filter for size class 2 
-
-ggplot(derm_merge_urchin2, aes(x = size, 
-                               y = urchin_size)) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  labs(x = "Star size", 
-       y = "Urchin size", 
-       title = "Star size relative to urchin size") + 
-  scale_color_brewer(palette = "Dark2")
-
-# scatterplot of star size vs urchin size (only size class 3)
-
-derm_merge_urchin3 <- filter(derm_merge, 
-                             diet == "Urchin", 
-                             size_class == "(20,30]") # filter for size class 3 
-
-ggplot(derm_merge_urchin3, aes(x = size, 
-                               y = urchin_size)) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  labs(x = "Star size", 
-       y = "Urchin size", 
-       title = "Star size relative to urchin size") + 
-  scale_color_brewer(palette = "Dark2")
-
-# Boxplots: size class vs. urchin size
+# boxplot: size class vs. urchin size
 
 derm_merge_urchin$size_class <- cut(derm_merge_urchin$size, breaks = seq(0, max(derm_merge$size), by = 10))
 # change size class to by 10
@@ -231,15 +191,14 @@ ggplot(derm_merge_urchin, aes(x = size_class,
   theme_minimal()
 
 ################################################################################
-# New question: how does diet "richness" change with size? do larger stars eat fewer types of prey?
-
-
-
-
-################################################################################
 # Asking R to do math for me
 
+# average derm size for other eaters and urchin eaters
+mean(derm_merge_urchin$size) # n = 36
+mean(derm_merge_other$size) # n = 101
 
+# average urchin size
+mean(derm_merge_urchin$urchin_size) # n = 36
 
 ################################################################################
 # Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
