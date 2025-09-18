@@ -61,10 +61,28 @@ quad_transect_avgs <- quad_data %>%
 #now averaging per survey 
 quad_avgs <- quad_transect_avgs %>%
   group_by(site, site_type, zone, survey_date) %>%
-  summarise( 
-    across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
-    substrate = get_mode(substrate), 
-    .groups = "drop")
+  # 1. Create proportion variables (safe division)
+  mutate(
+    prop_purp_concealedm2 = if_else(
+      purple_urchin_densitym2 > 0,
+      purple_urchin_conceiledm2 / purple_urchin_densitym2,
+      0
+    ),
+    prop_red_concealedm2 = if_else(
+      red_urchin_densitym2 > 0,
+      red_urchin_conceiledm2 / red_urchin_densitym2,
+      0
+    )
+  ) %>%
+  # 2. Drop the old concealed density columns
+  dplyr::select(-purple_urchin_conceiledm2, -red_urchin_conceiledm2) %>%
+  # 3. Summarise by group
+  summarise(
+    across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)),
+    substrate = get_mode(substrate),
+    .groups = "drop"
+  )
+
 
 # View result
 print(quad_avgs)
@@ -83,7 +101,7 @@ print(kelp_avgs)
 
 
 
-#Merging Quad/Kelp/Macro Dfs
+#Merging Quad/Kelp Dfs
 
 ```{r}
 merged_data <- kelp_avgs %>%
@@ -141,7 +159,7 @@ year_one_data[cols_to_scale] <- lapply(year_one_data[cols_to_scale], function(x)
 names(year_one_data)[names(year_one_data) %in% cols_to_scale] <-
   gsub("20m2","", cols_to_scale)
 
-lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin + purple_urchin_conceiledm2 + lamr + macr + macj + nerj + ptej + lsetj + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
+lda_model <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + purple_urchin_densitym2 + prop_purp_concealedm2 + lamr + macr + macj + nerj + ptej + lsetj + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live + cov_bare_rock + cov_bare_sand + cov_shell_debris, data = year_one_data)
 
 
 #lda figure
@@ -177,7 +195,7 @@ results
 ```
 
 
-###coefficients of LDA
+#FIG 2: coefficients of LDA
 ```{r}
 library(tidyr)
 
@@ -214,11 +232,12 @@ rename_vars <- c(
   "macr"        = "M. pyrifera recruit", 
   "density_nerlue"        = "N. luetkeana", 
   "nerj"        = "N. luetkeana juvenile", 
-  "density_lamset" = "L. setchellii"
+  "density_lamset" = "L. setchellii", 
+  "prop_purp_concealedm2" = "Concealed purple urchins (prop)"
 )
 
 coef_strong <- coef_long %>%
-  filter(abs(coefficient) > 1) %>%
+  filter(abs(coefficient) > 3) %>%
   mutate(
     variable = recode_factor(variable, !!!rename_vars),
     variable = reorder(variable, abs(coefficient))
@@ -235,7 +254,7 @@ ggplot(coef_strong, aes(
   coord_flip() +
   theme_minimal(base_size = 14) +
   theme(
-    panel.grid.major.y = element_blank(),
+   element_blank(), panel.grid.major = element_line(color = "white", linewidth = 0.3),
     panel.grid.minor = element_blank(),
     legend.position = "top",
     axis.text.y = element_text(size = 12, face = "bold"),
@@ -243,9 +262,9 @@ ggplot(coef_strong, aes(
     plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
   ) +
   labs(
-    title = "LDA Coefficients by Discriminant Function",
+    title = "",
     x = "Variable",
-    y = "Coefficient"
+    y = ""
   ) +
   scale_fill_brewer(palette = "Set1")
 
@@ -269,8 +288,8 @@ ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) 
   stat_ellipse(level = 0.95, size = 1, alpha = 0.6) + 
   scale_color_brewer(palette = "Set1") + 
   theme_minimal(base_size = 16) + 
-  labs( title = "Linear Discriminant Analysis", subtitle = "95% confidence ellipses by site type", x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), color = "Site Type", shape = "Site Type" ) + 
-  theme( plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)), plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)), axis.title = element_text(face = "bold", size = 15), axis.text = element_text(size = 13), legend.title = element_text(face = "bold", size = 14), legend.text = element_text(size = 12), panel.grid.minor = element_blank(), panel.grid.major = element_line(color = "grey85", linewidth = 0.3) )
+  labs( title = "", subtitle = "", x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), color = "Site Type", shape = "Site Type" ) + 
+  theme( plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)), plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)), axis.title = element_text(face = "bold", size = 15), axis.text = element_text(size = 13), legend.title = element_text(face = "bold", size = 14), legend.text = element_text(size = 12), panel.grid.minor = element_blank(), panel.grid.major = element_line(color = "white", linewidth = 0.3) )
 
 
 ```
@@ -366,7 +385,7 @@ cross_tab <- table(merged$site_type_pred_2024, merged$site_type_pred_2025)
 cross_tab
 ```
 
-#FIG 2: Heatmap of Predicted Patch Transitions
+#FIG 3: Heatmap of Predicted Patch Transitions
 ```{r}
 library(ggplot2)
 library(reshape2)
@@ -395,8 +414,8 @@ ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
             size = 5, fontface = "bold") +
  scale_fill_gradientn(colors = my_colors) +
   labs(
-    x = "2024 Predicted Patch Type",
-    y = "2025 Predicted Patch Type",
+    x = "2024",
+    y = "2025",
     title = "Transition of Predicted Patch Types from 2024 to 2025",
     fill = "Count"
   ) +
@@ -478,7 +497,7 @@ patch_trans_data <- pred_patch_data %>%
 # Barren → Incipient
 bar_incip <- patch_trans_data %>%
   filter(str_detect(patch_transition, "BAR.*→ INCIP"))
-glimpse(bar_incip)
+print(bar_incip)
 ```
 #B) INCIP -> FOR
 ```{r}
@@ -491,20 +510,20 @@ print(incip_for)
 ```{r}
 bar_for <- patch_trans_data %>%
   filter(str_detect(patch_transition, "BAR.*→ FOR"))
-view(bar_for)
+print(bar_for)
 ```
 
-#D)BAR25 -> INCIP25, FOR25
+#D)BAR24 -> BAR 25, FOR25
 ```{r}
 #Comparing BAR patches which stayed BAR to transitioned BAR patches
 
-bar_incip_for <- patch_trans_data %>%
-  filter(str_detect(patch_transition, "BAR.*→ (BAR|INCIP|FOR)")) %>%
+bar_bar_for <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ (BAR|FOR)")) %>%
   filter(year == "2025") %>%
   group_by(site, zone, year, pred_patch) %>%
   dplyr::select(c(-patch_transition, -latitude, -longitude, -n_macro_plants_))
 
-print(bar_incip_for)
+print(bar_bar_for)
 ```
 
 
@@ -576,32 +595,77 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
 ##B)
 ###Density species
 ```{r}
-#just selecting for density species 
-density_cols <- grep("^density_|macro_stipe|m2", names(incip_for), value = TRUE)
+#just selecting for algae species 
+density_cols <- c("macro_stipe_density_",  "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset",
+  "density_lamstump", "density_macstump", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj")
 
 #SIMPER on density
 comm_density <- incip_for[, density_cols]
 group <- as.factor(incip_for$year)  # comparing 2024 vs 2025
 
+
 sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
 sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
 
-# Convert to data frame
-sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`)
-sim_density_df$species <- rownames(sim_density_df)
-sim_density_df <- sim_density_df %>% arrange(desc(average))
 
-# Top 10 density contributors
+
+# Clean & arrange SIMPER results
+sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`) %>%
+  tibble::rownames_to_column("species") %>%
+  filter(!is.na(average), average > 0) %>%
+  arrange(desc(average)) %>%
+  mutate(
+    species = factor(species, levels = rev(species)), # order for plotting
+    percent = 100 * average / sum(average),
+    cumsum_percent = cumsum(percent)
+  )
+
+# Top 10 contributors
 top_density <- sim_density_df %>% slice_head(n = 10)
-print(top_density)
 
-# Plot density contributions
-ggplot(top_density, aes(x = reorder(species, average), y = average)) +
-  geom_bar(stat = "identity", fill = "forestgreen") +
+# Plot with cumulative contribution line
+ggplot(top_density, aes(x = species, y = percent)) +
+  geom_bar(stat = "identity", fill = "cadetblue", color = "black", width = 0.7) +
+  geom_line(aes(y = cumsum_percent, group = 1), color = "black", linewidth = 1) +
+  geom_point(aes(y = cumsum_percent), color = "black", size = 2, shape = 21, fill = "white") +
   coord_flip() +
-  labs(title = "Top SIMPER contributors (density): INCIP → FOR",
-       x = "Species",
-       y = "Average contribution") +
+  labs(
+    title = "Top SIMPER Contributors (Density): INCIP → FOR",
+    x = NULL,
+    y = "Contribution (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.major.y = element_blank(),   # remove horizontal grid lines
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_line(color = "grey80", linetype = "dotted"),
+    axis.text = element_text(size = 12),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+
+
+#showing whether the average abundances increased or decreased from year one to year two 
+sim_density_df_2 <- sim_density_df %>%
+  mutate(
+    change = ifelse(avb > ava, "Increase", "Decrease")
+  )
+
+# Top 10 contributors
+top_density_2 <- sim_density_df_2 %>% slice_head(n = 10)
+
+ggplot(top_density_2, aes(x = species, y = percent, fill = change)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top SIMPER Contributors with Direction",
+    x = "Species",
+    y = "Contribution (%)"
+  ) +
+  scale_fill_manual(values = c("Increase" = "blue", "Decrease" = "red")) +
   theme_minimal()
 
 ```
@@ -639,32 +703,87 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
 ##C)
 ###Density species
 ```{r}
-#just selecting for density species 
-density_cols <- grep("^density_|macro_stipe|m2", names(bar_for), value = TRUE)
+#just selecting for algae species 
+density_cols <- c("macro_stipe_density_",  "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset",
+  "density_lamstump", "density_macstump", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj")
 
 #SIMPER on density
-comm_density <- bar_for[, density_cols]
-group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
+comm_density_bf <- bar_for[, density_cols]
 
-sim_density <- simper(comm_density, group, permutations = 999, trace = FALSE)
+# Remove species with all zeros
+comm_density_bf <- comm_density_bf[, colSums(comm_density_bf) > 0]
+sim_density <- simper(comm_density, group, permutations = 0, trace = FALSE)
 sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
 
-# Convert to data frame
-sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`)
-sim_density_df$species <- rownames(sim_density_df)
-sim_density_df <- sim_density_df %>% arrange(desc(average))
 
-# Top 10 density contributors
+
+group <- as.factor(bar_for$year)  # comparing 2024 vs 2025
+
+
+#slightly adjusted to ecologically compare in simper (most of bar species are absent)
+comm_density_adjusted <- comm_density_bf + 1e-6
+sim_density <- simper(comm_density_adjusted, group, permutations = 0, trace = FALSE)
+sim_density_summary <- summary(sim_density, ordered = TRUE, digits = 3)
+
+
+
+# Clean & arrange SIMPER results
+sim_density_df <- as.data.frame(sim_density_summary$`2024_2025`) %>%
+  tibble::rownames_to_column("species") %>%
+  filter(!is.na(average), average > 0) %>%
+  arrange(desc(average)) %>%
+  mutate(
+    species = factor(species, levels = rev(species)), # order for plotting
+    percent = 100 * average / sum(average),
+    cumsum_percent = cumsum(percent)
+  )
+
+# Top 10 contributors
 top_density <- sim_density_df %>% slice_head(n = 10)
-print(top_density)
 
-# Plot density contributions
-ggplot(top_density, aes(x = reorder(species, average), y = average)) +
-  geom_bar(stat = "identity", fill = "coral2") +
+# Plot with cumulative contribution line
+ggplot(top_density, aes(x = species, y = percent)) +
+  geom_bar(stat = "identity", fill = "firebrick", color = "black", width = 0.7) +
+  geom_line(aes(y = cumsum_percent, group = 1), color = "black", linewidth = 1) +
+  geom_point(aes(y = cumsum_percent), color = "black", size = 2, shape = 21, fill = "white") +
   coord_flip() +
-  labs(title = "Top SIMPER contributors (density): BAR → FOR",
-       x = "Species",
-       y = "Average contribution") +
+  labs(
+    title = "Top SIMPER Contributors (Density): BAR → FOR",
+    x = NULL,
+    y = "Contribution (%)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    panel.grid.major.y = element_blank(),   # remove horizontal grid lines
+    panel.grid.minor = element_blank(),
+    panel.grid.major.x = element_line(color = "grey80", linetype = "dotted"),
+    axis.text = element_text(size = 12),
+    plot.title = element_text(size = 16, face = "bold", hjust = 0.5)
+  )
+
+
+
+#showing whether the average abundances increased or decreased from year one to year two 
+sim_density_df_2 <- sim_density_df %>%
+  mutate(
+    change = ifelse(avb > ava, "Increase", "Decrease")
+  )
+
+# Top 10 contributors
+top_density_2 <- sim_density_df_2 %>% slice_head(n = 10)
+
+ggplot(top_density_2, aes(x = species, y = percent, fill = change)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(
+    title = "Top SIMPER Contributors with Direction",
+    x = "Species",
+    y = "Contribution (%)"
+  ) +
+  scale_fill_manual(values = c("Increase" = "blue", "Decrease" = "red")) +
   theme_minimal()
 
 ```
@@ -700,15 +819,14 @@ ggplot(top_cover, aes(x = reorder(species, average), y = average)) +
        y = "Average contribution") +
   theme_minimal()
 ```
-
-
-#RDA 
-##D)
+#C) nMDS and envfit
 ```{r}
-# Load libraries
+# Load packages
 library(vegan)
 library(ggplot2)
 library(ggrepel)
+library(dplyr)
+library(grid)
 
 # --- 1. Prepare community matrix ---
 comm_cols <- c(
@@ -718,65 +836,327 @@ comm_cols <- c(
   "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
   "macr", "macj", "nerj", "ptej",
   "lsetj", "eisj",
-  grep("^cov_", names(df), value = TRUE)
+  grep("^cov_", names(bar_for), value = TRUE)
 )
 
-comm_matrix <- bar_incip_for[, comm_cols]
+comm_matrix <- bar_for[, comm_cols]
+
+# --- 2. Hellinger transform ---
+comm_hellinger <- decostand(comm_matrix, method = "hellinger")
+
+# --- 3. Prepare environmental variables ---
+bar_for$pred_patch <- as.factor(bar_for$pred_patch)
+
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2",
+              "prop_purp_concealedm2", "prop_red_concealedm2",
+              "tegula_densitym2", "pomaulax_densitym2", "zone")
+env_matrix <- bar_for[, env_vars]
+
+set.seed(123)
+
+# --- 4. NMDS ---
+nmds_model <- metaMDS(comm_hellinger, distance = "bray", k = 2, trymax = 100)
+
+# --- 5. Environmental fit ---
+env_matrix_numeric <- env_matrix %>% 
+  dplyr::select(risk_index, relief_cm, purple_urchin_densitym2, red_urchin_densitym2,
+         prop_purp_concealedm2, prop_red_concealedm2, tegula_densitym2, pomaulax_densitym2)
+
+envfit_model <- envfit(nmds_model, env_matrix_numeric, permutations = 999)
+
+# --- 6. Site scores ---
+site_scores <- as.data.frame(scores(nmds_model, display = "sites"))
+site_scores$pred_patch <- bar_for$pred_patch
+
+# --- 7. Significant environmental vectors ---
+vec_scores <- as.data.frame(scores(envfit_model, display = "vectors"))
+vec_scores$pval <- envfit_model$vectors$pvals
+vec_scores <- vec_scores %>% filter(pval < 0.05)
+vec_scores$variable <- rownames(vec_scores)
+
+# Scale by r values
+vec_scores <- vec_scores %>%
+  mutate(NMDS1 = NMDS1 * envfit_model$vectors$r[rownames(vec_scores)],
+         NMDS2 = NMDS2 * envfit_model$vectors$r[rownames(vec_scores)])
+
+# --- 8. PERMANOVA ---
+permanova_res <- adonis2(comm_hellinger ~ pred_patch, data = bar_for, permutations = 999)
+R2 <- round(permanova_res$R2[1], 3)
+pval <- permanova_res$`Pr(>F)`[1]
+
+# Format p-value nicely for display
+pval_label <- ifelse(pval < 0.001, "< 0.001", paste0("= ", round(pval, 3)))
+
+# --- 9. Plot NMDS with PERMANOVA annotation ---
+ggplot() +
+  geom_point(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    size = 3.5, alpha = 0.85
+  ) +
+  stat_ellipse(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    type = "t",
+    linetype = "solid",
+    size = 0.8,
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  #geom_segment(
+   # data = vec_scores,
+   # aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    #arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    #color = "black",
+    #size = 0.8
+
+#  geom_text_repel(
+    #data = vec_scores,
+    #aes(x = NMDS1, y = NMDS2, label = variable),
+    #color = "black",
+    #size = 3.8,
+   # fontface = "bold",
+    #max.overlaps = Inf
+  #) +
+  #annotate("text",
+           #x = min(site_scores$NMDS1), 
+           #y = min(site_scores$NMDS2) - 0.1,
+           #label = paste0("PERMANOVA: R² = ", R2, ", p ", pval_label),
+          # hjust = 0, vjust = 1, size = 4.5, fontface = "italic") +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Patch Type"
+  ) +
+  scale_color_manual(values = c("BAR" = "red", "FOR" = "blue")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.key = element_rect(fill = NA),
+    legend.key.size = unit(0.8, "cm"),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+
+
+```
+
+#B) nMDS and envfit
+```{r}
+# Load packages
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+# --- 1. Prepare community matrix ---
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj",
+  grep("^cov_", names(incip_for), value = TRUE)
+)
+
+comm_matrix <- incip_for[, comm_cols]
 
 # Hellinger transform to downweight zeros
 comm_hellinger <- decostand(comm_matrix, method = "hellinger")
 
 # --- 2. Prepare environmental variables ---
-bar_incip_for$zone <- as.factor(bar_incip_for$zone)
-bar_incip_for$pred_patch <- as.factor(bar_incip_for$pred_patch)
+incip_for$pred_patch <- as.factor(incip_for$pred_patch)
 
-env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2", "purple_urchin_conceiledm2",
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2", "prop_purp_concealedm2", "prop_red_concealedm2",
               "tegula_densitym2", "pomaulax_densitym2", "zone")
-env_matrix <- bar_incip_for[, env_vars]
+env_matrix <- incip_for[, env_vars]
 
-# --- 3. Run RDA ---
-rda_model <- rda(comm_hellinger ~ risk_index + relief_cm + purple_urchin_densitym2 + red_urchin_densitym2+
-                 purple_urchin_conceiledm2 + tegula_densitym2 + pomaulax_densitym2 + zone,
-                 data = env_matrix)
 
-# --- 4. Extract scores for plotting ---
-# Sample sites
-site_scores <- as.data.frame(scores(rda_model, display="sites", scaling=2))
-site_scores$sample <- rownames(site_scores)
-site_scores$pred_patch <- bar_incip_for$pred_patch
+set.seed(123)  # reproducibility
 
-# Species scores
-species_scores <- as.data.frame(scores(rda_model, display="species", scaling=2))
-species_scores$species <- rownames(species_scores)
+# --- 1. NMDS ---
+nmds_model <- metaMDS(comm_hellinger, distance = "bray", k = 2, trymax = 100)
 
-# Environmental vectors
-env_scores <- as.data.frame(scores(rda_model, display="bp", scaling=2))
-env_scores$variable <- rownames(env_scores)
+# --- 2. Environmental fit ---
+env_matrix_numeric <- env_matrix %>% 
+  dplyr::select(risk_index, relief_cm, purple_urchin_densitym2, red_urchin_densitym2,
+         prop_purp_concealedm2, prop_red_concealedm2, tegula_densitym2, pomaulax_densitym2)
 
-# --- 5. Plot using ggplot2 ---
+envfit_model <- envfit(nmds_model, env_matrix_numeric, permutations = 999)
+
+# --- 3. Extract site scores ---
+site_scores <- as.data.frame(scores(nmds_model, display = "sites"))
+site_scores$pred_patch <- incip_for$pred_patch  # group labels
+
+# --- 4. Extract significant environmental vectors ---
+vec_scores <- as.data.frame(scores(envfit_model, display = "vectors"))
+vec_scores$pval <- envfit_model$vectors$pvals
+vec_scores <- vec_scores %>% filter(pval < 0.05)
+vec_scores$variable <- rownames(vec_scores)
+
+# Scale arrows by r (strength of correlation)
+vec_scores <- vec_scores %>%
+  mutate(NMDS1 = NMDS1 * envfit_model$vectors$r[rownames(vec_scores)],
+         NMDS2 = NMDS2 * envfit_model$vectors$r[rownames(vec_scores)])
+
+# --- 8. PERMANOVA ---
+permanova_res <- adonis2(comm_hellinger ~ pred_patch, data = incip_for, permutations = 999)
+R2 <- round(permanova_res$R2[1], 3)
+pval <- permanova_res$`Pr(>F)`[1]
+
+# Format p-value nicely for display
+pval_label <- ifelse(pval < 0.001, "< 0.001", paste0("= ", round(pval, 3)))
+
+# --- 9. Plot NMDS with PERMANOVA annotation ---
 ggplot() +
-  # Sites colored by zone
-  geom_point(data=site_scores, aes(x=RDA1, y=RDA2, color=pred_patch), size=3) +
-  # Species names
-  geom_text_repel(data=species_scores, aes(x=RDA1, y=RDA2, label=species),
-                  color="black", size=3) +
-  # Environmental arrows
-  geom_segment(data=env_scores, aes(x=0, y=0, xend=RDA1, yend=RDA2),
-               arrow=arrow(length=unit(0.3,"cm")), color="red") +
-  geom_text_repel(data=env_scores, aes(x=RDA1, y=RDA2, label=variable),
-                  color="red", size=3) +
-  theme_minimal() +
-  labs(title="RDA Biplot: Community composition vs Environmental variables",
-       x="RDA1", y="RDA2") +
-  scale_color_brewer(palette="Set1") +
-  theme(legend.position="right")
+  geom_point(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    size = 3.5, alpha = 0.85
+  ) +
+  stat_ellipse(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    type = "t",
+    linetype = "solid",
+    size = 0.8,
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  #geom_segment(
+   # data = vec_scores,
+   # aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    #arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    #color = "black",
+    #size = 0.8
 
+#  geom_text_repel(
+    #data = vec_scores,
+    #aes(x = NMDS1, y = NMDS2, label = variable),
+    #color = "black",
+    #size = 3.8,
+   # fontface = "bold",
+    #max.overlaps = Inf
+  #) +
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Patch Type"
+  ) +
+  scale_color_manual(values = c("INCIP" = "forestgreen", "FOR" = "blue")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.key = element_rect(fill = NA),
+    legend.key.size = unit(0.8, "cm"),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
 ```
+
+#D) nMDS and envfit
 ```{r}
-anova(rda_model, by="terms")
+# Load packages
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+grep("^cov_", names(df), value = TRUE)
+
+
+# --- 1. Prepare community matrix ---
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj",
+  grep("^cov_", names(bar_bar_for), value = TRUE)
+)
+
+comm_matrix <- bar_bar_for[, comm_cols]
+
+# Hellinger transform to downweight zeros
+comm_hellinger <- decostand(comm_matrix, method = "hellinger")
+
+# --- 2. Prepare environmental variables ---
+bar_bar_for$pred_patch <- as.factor(bar_bar_for$pred_patch)
+
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2", "prop_purp_concealedm2", "prop_red_concealedm2",
+              "tegula_densitym2", "pomaulax_densitym2", "zone")
+env_matrix <- bar_bar_for[, env_vars]
+
+
+set.seed(123)  # reproducibility
+
+# --- 1. NMDS ---
+nmds_model <- metaMDS(comm_hellinger, distance = "bray", k = 2, trymax = 100)
+
+# --- 2. Environmental fit ---
+env_matrix_numeric <- env_matrix %>% 
+  dplyr::select(risk_index, relief_cm, purple_urchin_densitym2, red_urchin_densitym2,
+         prop_purp_concealedm2, prop_red_concealedm2, tegula_densitym2, pomaulax_densitym2)
+
+envfit_model <- envfit(nmds_model, env_matrix_numeric, permutations = 999)
+
+# --- 3. Extract site scores ---
+site_scores <- as.data.frame(scores(nmds_model, display = "sites"))
+site_scores$pred_patch <- bar_bar_for$pred_patch  # group labels
+
+# --- 4. Extract significant environmental vectors ---
+vec_scores <- as.data.frame(scores(envfit_model, display = "vectors"))
+vec_scores$pval <- envfit_model$vectors$pvals
+vec_scores <- vec_scores %>% filter(pval < 0.05)
+vec_scores$variable <- rownames(vec_scores)
+
+# Scale arrows by r (strength of correlation)
+vec_scores <- vec_scores %>%
+  mutate(NMDS1 = NMDS1 * envfit_model$vectors$r[rownames(vec_scores)],
+         NMDS2 = NMDS2 * envfit_model$vectors$r[rownames(vec_scores)])
+
+# --- 5. Plot NMDS ---
+ggplot() +
+  # Sites colored by group
+  geom_point(data = site_scores, aes(x = NMDS1, y = NMDS2, color = pred_patch), size = 3, alpha = 0.8) +
+  
+  # 95% confidence ellipses for each group
+  stat_ellipse(data = site_scores, aes(x = NMDS1, y = NMDS2, color = pred_patch), 
+               type = "t", linetype = 2, size = 1, alpha = 0.2, show.legend = FALSE) +
+  
+  # Environmental arrows
+  geom_segment(data = vec_scores, 
+               aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+               arrow = arrow(length = unit(0.35, "cm")), color = "darkred", size = 1) +
+  
+  # Arrow labels
+  geom_text_repel(data = vec_scores, 
+                  aes(x = NMDS1, y = NMDS2, label = variable),
+                  color = "darkred", size = 4, fontface = "bold") +
+  
+  # Theme and labels
+  theme_minimal(base_size = 14) +
+  labs(title = "NMDS Biplot: Community Composition vs Significant Environmental Drivers",
+       x = "NMDS1", y = "NMDS2", color = "Predicted Patch") +
+  scale_color_brewer(palette = "Set1") +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    axis.title = element_text(face = "bold")
+  )
+
 ```
-
-
 
 
 
@@ -792,7 +1172,7 @@ individual_sp <- bar_incip %>%
   summarise(across(
     c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
       density_ptecal, ptej, lamr, density_lamset, lsetj,
-      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      purple_urchin_densitym2, prop_purp_concealedm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
     sum,
@@ -810,7 +1190,7 @@ individual_sp <- bar_incip %>%
     lam_setchellii_adults = density_lamset,
     lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
-    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    concealed_purple_urchins = prop_purp_concealedm2,
     articulated_coralline = cov_articulated_coralline,
     crustose_coralline = cov_crustose_coralline,
     encrusting_red = cov_encrusting_red,
@@ -982,7 +1362,7 @@ urch_density_long <- indv_long %>%
   filter(!individual_species %in% c(algae, cover_species))
 
 # Define species order for plotting
-species_order <- c("total_purple_urchins", "conceiled_purple_urchins")
+species_order <- c("total_purple_urchins", "concealed_purple_urchins")
 
 urch_density_long <- urch_density_long %>%
   mutate(individual_species = factor(individual_species, levels = species_order))
@@ -1102,7 +1482,7 @@ individual_sp_for <- incip_for %>%
   summarise(across(
     c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
       density_ptecal, ptej, lamr, density_lamset, lsetj,
-      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      purple_urchin_densitym2, prop_purp_concealedm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
     sum,
@@ -1120,7 +1500,7 @@ individual_sp_for <- incip_for %>%
     lam_setchellii_adults = density_lamset,
     lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
-    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    concealed_purple_urchins = prop_purp_concealedm2,
     articulated_coralline = cov_articulated_coralline,
     crustose_coralline = cov_crustose_coralline,
     encrusting_red = cov_encrusting_red,
@@ -1142,7 +1522,7 @@ indv_long_for <- individual_sp_for %>%
 # 3. Define groups
 cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_red",
                    "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
-urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
+urchins <- c("total_purple_urchins", "concealed_purple_urchins")
 
 algae <- c(
   "laminariales_spp_recruits",
@@ -1419,7 +1799,7 @@ individual_sp_bf <- bar_for %>%
   summarise(across(
     c(macro_stipe_density_, macj, macr, density_nerlue, nerj,
       density_ptecal, ptej, lamr, density_lamset, lsetj,
-      purple_urchin_densitym2, purple_urchin_conceiledm2, cov_articulated_coralline,
+      purple_urchin_densitym2, prop_purp_concealedm2, cov_articulated_coralline,
       cov_crustose_coralline, cov_encrusting_red, cov_fleshy_red, cov_stephanocystis,
       cov_desmarestia_spp),
     sum,
@@ -1437,7 +1817,7 @@ individual_sp_bf <- bar_for %>%
     lam_setchellii_adults = density_lamset,
     lam_setchellii_juveniles = lsetj,
     total_purple_urchins = purple_urchin_densitym2,
-    conceiled_purple_urchins = purple_urchin_conceiledm2,
+    concealed_purple_urchins = prop_purp_concealedm2,
     articulated_coralline = cov_articulated_coralline,
     crustose_coralline = cov_crustose_coralline,
     encrusting_red = cov_encrusting_red,
@@ -1446,6 +1826,7 @@ individual_sp_bf <- bar_for %>%
     desmerestia_spp = cov_desmarestia_spp
   ) %>%
   ungroup()
+  
 
 # 2. Pivot longer
 indv_long_bf <- individual_sp_bf %>%
@@ -1459,7 +1840,7 @@ indv_long_bf <- individual_sp_bf %>%
 # 3. Define groups
 cover_species <- c("articulated_coralline", "crustose_coralline", "encrusting_red",
                    "fleshy_reds", "stephanocystis_adult", "desmerestia_spp")
-urchins <- c("total_purple_urchins", "conceiled_purple_urchins")
+urchins <- c("total_purple_urchins", "concealed_purple_urchins")
 
 algae <- c(  "laminariales_spp_recruits",
   "lam_setchellii_juveniles", 
@@ -1719,5 +2100,79 @@ anova_table <- anova_summary %>%
 ggtexttable(anova_table,
             rows = NULL,       # remove row names
             theme = ttheme("classic"))
+```
+#facetwrap
+```{r}
+# Get min and max across both datasets
+y_range <- range(c(algal_density_tornado_2$value_signed,
+                   algal_density_tornado_3$value_signed),
+                 na.rm = TRUE)
+
+y_limits <- c(floor(min(y_range)), ceiling(max(y_range)))
+
+
+library(ggplot2)
+
+p1 <- ggplot(algal_density_tornado_2, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(limits = y_limits,
+                     labels = abs,
+                     expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "forestgreen", "2025" = "#1f77b4")) +
+  labs(
+    title = "INCIP -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85")
+  )
+
+
+p2 <- ggplot(algal_density_tornado_3, 
+       aes(x = reorder(individual_species, abs(mean_value)), 
+           y = value_signed, 
+           fill = factor(year))) +
+  geom_col(width = 0.7, color = "gray20") +
+  geom_errorbar(aes(ymin = value_signed - se_signed, ymax = value_signed + se_signed),
+                width = 0.2, color = "black") +
+  coord_flip() +
+  scale_y_continuous(limits = y_limits,
+                     labels = abs,
+                     expand = expansion(mult = c(0.05, 0.05))) +
+  scale_fill_manual(values = c("2024" = "#d62728", "2025" = "#1f77b4")) +
+  labs(
+    title = "BAR -> FOR",
+    subtitle = "2024 (left) vs 2025 (right)",
+    x = NULL,
+    y = "Mean Density (per m²)",
+    fill = "Year"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+    plot.subtitle = element_text(hjust = 0.5, size = 13, margin = margin(b = 10)),
+    axis.text = element_text(color = "black"),
+    legend.position = "top",
+    panel.grid.major.y = element_blank(),
+    panel.grid.major.x = element_line(color = "gray85")
+  )
+
+p1
+p2
 ```
 
