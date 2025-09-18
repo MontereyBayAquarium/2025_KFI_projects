@@ -2,7 +2,7 @@
 
 install.packages("librarian")
 librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive",
-                 "viridis", "plotly", "hrbrmisc")
+                 "viridis", "plotly", "viridis", "cowplot", "ggpubr", "patchwork")
 
 install.packages("googledrive")
 library(googledrive)
@@ -39,7 +39,9 @@ print(objs)
 # Create new data frames
 
 kelp_data <- kelp_data %>% # create new column for year in kelp_data
-  mutate(year = year(survey_date))
+  mutate(year = year(survey_date)) %>%
+  mutate(total_adult_stipes = macro_stipe_density_20m2 + density20m2_ptecal + density20m2_eisarb +
+  density20m2_nerlue + density20m2_lamset + density20m2_lamstump + density20m2_macstump)
 
 quad_data <- quad_data %>% # create new column for year in quad_data
   mutate(year = year(survey_date))
@@ -57,8 +59,9 @@ quad_sum <- # created new data frame with mean urch + purps exposed + recruits a
             mean_exposed = mean(exposed_urchin, na.rm = TRUE),
             mean_urch_prop = mean(prop_exp, na.rm = TRUE),
             total_recruit = sum(total_recruit, na.rm = TRUE)) %>%
-  left_join(.,kelp_data, by = c("year", "site", "site_type", "zone", "transect")) # join kelp_data to quad_data
+  left_join(.,kelp_data, by = c("year", "site", "site_type", "zone", "transect"))  # join kelp_data to quad_data
 
+  
 #recruit_sum <- # created new data frame to total recruits and juveniles + proportion of purps exposed
 #  quad_data %>% 
 #  mutate(prop_exp = (purple_urchin_densitym2 - purple_urchin_conceiledm2) / purple_urchin_densitym2) %>%
@@ -79,6 +82,8 @@ quad_sum <- # created new data frame with mean urch + purps exposed + recruits a
 
 # 1. Number of Kelp Stipes vs Mean Urchin Density
 
+# only macro stipes
+
 ggplot(quad_sum, 
        aes(x = mean_urch_den, y = macro_stipe_density_20m2)) +
   geom_point() +
@@ -92,6 +97,22 @@ ggplot(quad_sum,
   labs(x = "Mean purple sea urchin density", y = "Total Macrocystis pyrifera stipes")
 
 #  facet_wrap(~site_type) + 
+
+# total stipitates
+
+ggplot(quad_sum, 
+       aes(x = mean_urch_den, y = total_adult_stipes)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$total_adult_stipes), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential 
+  xlim(0, 50) +
+  ylim(0, 200) +
+  theme_minimal() +
+  labs(x = "Mean purple sea urchin density", y = "Total stipitates")
+
 
 # 2. Number of Plants vs Mean Urchin Density
 
@@ -135,6 +156,7 @@ ggplot(quad_sum,
 
 # 1. Total stipes vs exposed urchins
 
+# total macro stipes
 
 ggplot(quad_sum, 
        aes(x = mean_urch_prop, y = macro_stipe_density_20m2)) +
@@ -149,6 +171,20 @@ ggplot(quad_sum,
   labs(x = "Proportion of exposed purple sea urchins", y = "Total Macrocystis pyrifera stipes")
 
 #  facet_wrap(~site_type) + 
+
+# total stipitates
+
+ggplot(quad_sum, 
+       aes(x = mean_urch_prop, y = total_adult_stipes)) +
+  geom_point() +
+  stat_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$total_adult_stipes), b = 0.1)),
+              se = FALSE,
+              color = "blue") + # negative exponential 
+  ylim(0, 200) +
+  theme_minimal() +
+  labs(x = "Proportion of exposed purple sea urchins", y = "Total stipitates")
 
 # 2. Number of macro plants vs exposed urchins
 
@@ -190,6 +226,8 @@ ggplot(quad_sum,
 
 # facet_wrap using site_type 
 
+quad_sum$site_type <- factor(quad_sum$site_type, levels = c("BAR", "INCIP", "FOR"))
+
 ggplot(quad_sum, 
        aes(x = mean_urch_den, y = total_recruit)) +
   geom_point() +
@@ -210,10 +248,10 @@ ggplot(quad_sum,
   geom_point() +
   stat_smooth(method = "nls",   
               formula = y ~ a * exp(-b * x),
-              method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
+              method.args = list(start = list(a = max(quad_sum$total_recruit), b = 0.1)),
               se = FALSE,
               color = "blue") + # negative exponential
-  ylim(0, 100) +
+  ylim(0, 50) +
   theme_minimal() +
   facet_wrap(~site_type) +
   labs(x = "Mean purple urchins exposed", y = "Total number of recruits and juveniles")
@@ -254,14 +292,18 @@ ggplot(quad_sum,
   guides(fill = guide_legend(override.aes = list(size = 5)))
 
 
+# Josh's suggestion
+
 ggplot(quad_sum,
        aes(x = mean_urch_den, 
            y = macro_stipe_density_20m2, 
+           size = mean_urch_prop, 
            fill = site_type)) +
-  geom_point(alpha = 0.5, shape = 21, color = "black") +
+  geom_point(alpha = 0.6, shape = 21, color = "black") +
   scale_fill_manual(values = c("FOR" = "#009E73", 
                                "BAR" = "#E69F00", 
                                "INCIP" = "#0072B2")) +
+  scale_size_continuous(range = c(2, 7), name = "Proportion of Exposed Urchins") +
   theme_classic() +
   labs(x = "Mean purple sea urchin density",
        y = "Total stipe density",
@@ -269,12 +311,243 @@ ggplot(quad_sum,
   theme(legend.position = "right") +
   guides(fill = guide_legend(override.aes = list(size = 5)))
 
+# only macro stipes
+
+ggplot(quad_sum, aes(
+  x = mean_urch_den, 
+  y = mean_urch_prop, 
+  size = macro_stipe_density_20m2,
+  fill = macro_stipe_density_20m2
+)) +
+  geom_point(alpha = 0.6, shape = 21, color = "black") +
+  scale_size_continuous(range = c(2, 7), name = "Number of Stipes") +
+  scale_fill_viridis_c(option = "C", name = "Number of Stipes", guide = "legend") +
+  theme_classic() +
+  labs(
+    x = "Mean purple sea urchin density",
+    y = "Proportion of exposed purple sea urchins"
+  ) +
+  theme(legend.position = "right") +
+  guides(
+    size = guide_legend(title = "Number of Stipes"),   # size legend will reflect actual bubble sizes
+    fill = guide_legend(title = "Number of Stipes")    # fill legend will reflect colors
+  ) +
+  xlim(0, 50)
+
+# total stiptates
+
+ggplot(quad_sum, aes(
+  x = mean_urch_den, 
+  y = mean_urch_prop, 
+  size = total_adult_stipes,
+  fill = total_adult_stipes
+)) +
+  geom_point(alpha = 0.6, shape = 21, color = "black") +
+  scale_size_continuous(range = c(2, 7), name = "Total number of stipes", limits = c(0, 200)) +
+  scale_fill_viridis_c(option = "C", name = "Total number of stipes", guide = "legend", limits= c(0,200)) +
+  theme_classic() +
+  labs(
+    x = "Mean purple sea urchin density",
+    y = "Proportion of exposed purple sea urchins"
+  ) +
+  theme(legend.position = "right") +
+  guides(
+    size = guide_legend(title = "Total number of stipes"),   # size legend will reflect actual bubble sizes
+    fill = guide_legend(title = "Total number of stipes")    # fill legend will reflect colors
+  ) +
+  xlim(0, 50)
 
 
 
+# RECRUITS  VS STIPITATES
+
+
+ggplot(quad_sum, aes(x = total_adult_stipes, y = total_recruit)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  annotate("text", x = 400, y = 200, label = paste0("R² = ", round(r2, 2)), color = "red", size = 5) +
+  theme_minimal() +
+  labs(
+    x = "Total kelp stipitates",
+    y = "Total kelp recruits"
+  )
+
+# 19% of the variation in total recruits is explained by total adult stipes
+
+lin_fit <- lm(total_recruit ~ total_adult_stipes, data = quad_sum)
+r2 <- summary(lin_fit)$r.squared
+
+ggplot(quad_sum, aes(x = total_adult_stipes, y = total_recruit)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = TRUE, color = "blue") +
+  annotate("text", x = 150, y = 95, label = paste0("R² = ", round(r2, 2)), color = "red", size = 5) +
+  theme_minimal() +
+  labs(
+    x = "Total kelp stipitates",
+    y = "Total kelp recruits",
+    title = "Linear Fit of Kelp Recruits vs Adult Stipitates"
+  ) +
+  xlim(0, 200) +
+  ylim(0, 100)
 
 
 
+# patchwork to try to make drawing
+
+plot1 <- 
+  ggplot(quad_sum, aes(x = mean_urch_den, y = total_adult_stipes)) +
+  geom_point() +
+  geom_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$total_adult_stipes), b = 0.1)),
+              se = FALSE,
+              color = "blue") +
+  theme_classic() + 
+  xlim(0, 50) +
+  ylim(0, 200) +
+  facet_wrap(~site_type)
+
+plot1
+
+plot2 <-
+  ggplot(quad_sum, aes(x = mean_urch_den, y = total_recruit)) +
+  geom_point() +
+  geom_smooth(method = "nls",   
+              formula = y ~ a * exp(-b * x),
+              method.args = list(start = list(a = max(quad_sum$total_recruit), b = 0.1)),
+              se = FALSE,
+              color = "blue") +
+  theme_classic() +
+  xlim(0, 50) + 
+  ylim(0, 200) +
+  facet_wrap(~site_type)
+
+plot2
+
+(plot1 / plot2) + 
+  plot_annotation(tag_levels = "A") # getting there, but not ideal
+
+# Try it with facet grid
+
+quad_long <- quad_sum %>%
+  pivot_longer(
+    cols = c(total_recruit, total_adult_stipes),
+    names_to = "variable",
+    values_to = "value"
+  )
+
+# nls ggplot with uchin density 
+
+ggplot(quad_long, aes(x = mean_urch_den, y = value)) +
+  geom_point() +
+  geom_smooth(
+    method = "nls",
+    formula = y ~ a * exp(-b * x),
+    method.args = list(start = list(a = max(quad_long$value), b = 0.1)),
+    se = FALSE,
+    color = "blue"
+    ) +
+  facet_grid(variable ~ site_type, switch = "y", 
+             labeller = 
+               labeller(variable = c(
+                total_recruit = "Kelp recruits",
+                total_adult_stipes = "Adult stipitates"))) +
+  theme_classic() +
+  xlim(0, 50) +
+  ylim(0, 200) +
+  labs(
+    x = "Mean purple sea urchin density",
+    y = "") +
+  theme(
+    strip.placement = "outside",               # push strips outward
+    strip.switch.pad.grid = unit(0.1, "cm"), 
+    axis.text.y = element_text(margin = margin(r = 0)) # pull y-ticks inward
+  ) 
+#  geom_text(data = r2_df, 
+#            aes(x = 40, y = 170, label = paste0("R² = ", round(r2, 2))),
+#            inherit.aes = FALSE, color = "red")
+
+
+# Calculate r^2 for each fit
+
+r2_df <- quad_long %>%
+  group_by(site_type, variable) %>%
+  summarise(
+    r2 = {
+      df <- cur_data()
+      fit <- tryCatch(
+        nls(value ~ a * exp(-b * mean_urch_den),
+            data = df,
+            start = list(a = max(df$value), b = 0.1),
+            control = nls.control(maxiter = 200, warnOnly = TRUE)),
+        error = function(e) NULL
+      )
+      if (!is.null(fit)) {
+        preds <- predict(fit)
+        ss_res <- sum((df$value - preds)^2)
+        ss_tot <- sum((df$value - mean(df$value))^2)
+        1 - ss_res/ss_tot
+      } else NA
+    },
+    .groups = "drop"
+  )
+
+r2_df # mean purple sea urchin is a weak indicator of adult stipitates and kelp recruits across site_type
+
+
+# nls ggplot with proportion of urchins exposed
+
+ggplot(quad_long, aes(x = mean_urch_prop, y = value)) +
+  geom_point() +
+  geom_smooth(
+    method = "nls",
+    formula = y ~ a * exp(-b * x),
+    method.args = list(start = list(a = max(quad_long$value), b = 0.1)),
+    se = FALSE,
+    color = "blue"
+  ) +
+  facet_grid(variable ~ site_type, switch = "y", 
+             labeller = 
+               labeller(variable = c(
+                 total_recruit = "Kelp recruits",
+                 total_adult_stipes = "Adult stipitates"))) +
+  theme_classic() +
+  ylim(0, 200) +
+  labs(
+    x = "Proportion of exposed purple sea urchins",
+    y = "") +
+  theme(
+    strip.placement = "outside",               # push strips outward
+    strip.switch.pad.grid = unit(0.1, "cm"), 
+    axis.text.y = element_text(margin = margin(r = 0)) # pull y-ticks inward
+  ) 
+
+
+# calculate r^2 for proportion exposed
+
+r2_prop_df <- quad_long %>%
+  group_by(site_type, variable) %>%
+  summarise(
+    r2 = {
+      df <- cur_data()
+      fit <- tryCatch(
+        nls(value ~ a * exp(-b * mean_urch_prop),
+            data = df,
+            start = list(a = max(df$value), b = 0.1),
+            control = nls.control(maxiter = 200, warnOnly = TRUE)),
+        error = function(e) NULL
+      )
+      if (!is.null(fit)) {
+        preds <- predict(fit)
+        ss_res <- sum((df$value - preds)^2)
+        ss_tot <- sum((df$value - mean(df$value))^2)
+        1 - ss_res/ss_tot
+      } else NA
+    },
+    .groups = "drop"
+  )
+
+r2_prop_df # yikes, even lower than mean urchin density
 
 
 
