@@ -96,7 +96,6 @@ ggplot(quad_sum,
    theme_minimal() +
   labs(x = "Mean purple sea urchin density", y = "Total Macrocystis pyrifera stipes")
 
-#  facet_wrap(~site_type) + 
 
 # total stipitates
 
@@ -113,6 +112,77 @@ ggplot(quad_sum,
   theme_minimal() +
   labs(x = "Mean purple sea urchin density", y = "Total stipitates")
 
+# Make the line fit better:
+
+# Fit nonlinear model with baseline
+
+stipefit <- nls(total_adult_stipes ~ a * exp(-b * mean_urch_den),
+           data = quad_sum,
+           start = list(a = max(quad_sum$total_adult_stipes, na.rm = TRUE),
+                        b = 0.1))
+
+# Predictions
+
+quad_sum$stipepred <- predict(fit)
+
+# Calculate R²
+
+ss_res_stipe <- sum((quad_sum$total_adult_stipes - quad_sum$stipepred)^2)
+ss_tot_stipe <- sum((quad_sum$total_adult_stipes - mean(quad_sum$total_adult_stipes))^2)
+r2_stipe <- 1 - ss_res/ss_tot 
+r2_stipe <- 0.12
+
+
+# Plot with R² annotation
+ggplot(quad_sum, aes(x = mean_urch_den, y = total_adult_stipes)) +
+  geom_point() +
+  geom_line(aes(y = stipepred), color = "blue", size = 1) +
+  annotate("text", x = 40, y = 170, 
+           label = paste0("R² = ", round(r2, 2)),
+           hjust = 0, size = 5, color = "red") +
+  xlim(0, 50) +
+  ylim(0, 200) +
+  theme_minimal() +
+  labs(x = "Mean purple sea urchin density", 
+       y = "Total adult kelp stipitates",
+       title = "Decline of Kelp Stipitates with Increasing Purple Sea Urchin Density")
+
+# calculate a and b
+
+coef(stipefit)
+
+# a = 67, b = 0.16, x half = 4.33 m2
+
+# Half-life x-value
+
+x_half_stipe <- log(2)/0.16   # 4.33
+y_half_stipe <- 67 / 2        # 33.5
+
+# Create exponential predictions
+
+quad_sum$stipepred <- 67 * exp(-0.16 * quad_sum$mean_urch_den)
+
+ggplot(quad_sum, aes(x = mean_urch_den, y = total_adult_stipes)) +
+  geom_point() +
+  geom_line(aes(y = stipepred), color = "blue", size = 1) +
+  geom_vline(xintercept = x_half_stipe, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = y_half_stipe, linetype = "dashed", color = "red") +
+  annotate("text", x = x_half_stipe + 2, y = y_half_stipe + 5, 
+           label = paste0("Half-life at x = ", round(x_half_stipe, 2)), 
+           color = "red", hjust = -0.5) +
+  annotate("text", x = 40, y = 150, 
+           label = paste0("R² = ", round(r2_stipe, 2)), 
+           color = "red", hjust = 0) +
+  xlim(0, 50) +
+  ylim(0, 200) +
+  theme_minimal() +
+  labs(
+    title = "Effect of Purple Sea Urchin Density on Adult Kelp Stipitates",
+    x = "Mean purple sea urchin density",
+    y = "Total adult kelp stipitates"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+
 
 # 2. Number of Plants vs Mean Urchin Density
 
@@ -128,7 +198,7 @@ ggplot(quad_sum,
   theme_minimal() +
   labs(x = "Mean purple sea urchin density", y = "Total Number of Macrocystis pyrifera plants")
 
-#  facet_wrap(~site_type) + 
+
 
 # 3. Number of Recruits vs Mean Purple Urchins
 
@@ -137,7 +207,7 @@ ggplot(quad_sum,
   geom_point() +
   stat_smooth(method = "nls",   
               formula = y ~ a * exp(-b * x),
-              method.args = list(start = list(a = max(recruit_sum$total_recruit), b = 0.1)),
+              method.args = list(start = list(a = max(quad_sum$total_recruit), b = 0.1)),
               se = FALSE,
               color = "blue") + # negative exponential
   xlim(0, 50) +
@@ -145,7 +215,55 @@ ggplot(quad_sum,
   theme_minimal() +
   labs(x = "Mean purple urchin density", y = "Total number of recruits and juveniles")
 
-#  facet_wrap(~site_type) +
+# Fit 
+
+recruitfit <- nls(total_recruit ~ a * exp(-b * mean_urch_den),
+           data = quad_sum,
+           start = list(a = max(quad_sum$total_recruit, na.rm = TRUE),
+                        b = 0.1))
+
+
+quad_sum$recruitpred <- predict(recruitfit)
+
+ss_res_recruit <- sum((quad_sum$total_recruit - quad_sum$recruitpred)^2)
+ss_tot_recruit <- sum((quad_sum$total_recruit - mean(quad_sum$total_recruit))^2)
+r2_recruit <- 1 - ss_res/ss_tot 
+r2_recruit
+#<- 0.10
+
+coef(recruitfit)
+
+# a = 27 b = 0.26
+
+x_half_recruit <- log(2)/0.26 # 2.67
+y_half_recruit <- 27 / 2   # 13.5
+
+
+quad_sum$recruitpred <- 27 * exp(-0.26 * quad_sum$mean_urch_den)
+
+
+ggplot(quad_sum, aes(x = mean_urch_den, y = total_recruit)) +
+  geom_point() +
+  geom_line(aes(y = recruitpred), color = "blue", size = 1) +
+  geom_vline(xintercept = x_half_recruit, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = y_half_recruit, linetype = "dashed", color = "red") +
+  annotate("text", x = x_half_recruit + 2, y = y_half_recruit + 5, 
+           label = paste0("Half-life at x = ", round(x_half_recruit, 2)), 
+           color = "red", hjust = -0.5) +
+  annotate("text", x = 40, y = 80, 
+           label = paste0("R² = ", round(r2_recruit, 2)), 
+           color = "red", hjust = 0) +
+  xlim(0, 50) +
+  ylim(0, 100) +
+  theme_minimal() +
+  labs(
+    title = "Effect of Purple Sea Urchin Density on Kelp Recruitment",
+    x = "Mean purple sea urchin density",
+    y = "Total recruits and juveniles"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
 
 
 ###############################################################################
@@ -170,7 +288,7 @@ ggplot(quad_sum,
   theme_minimal() +
   labs(x = "Proportion of exposed purple sea urchins", y = "Total Macrocystis pyrifera stipes")
 
-#  facet_wrap(~site_type) + 
+
 
 # total stipitates
 
@@ -185,6 +303,63 @@ ggplot(quad_sum,
   ylim(0, 200) +
   theme_minimal() +
   labs(x = "Proportion of exposed purple sea urchins", y = "Total stipitates")
+
+
+
+
+prop_stipe_fit <- nls(total_adult_stipes ~ a * exp(-b * mean_urch_prop),
+                      data = quad_sum,
+                      start = list(a = max(quad_sum$total_adult_stipes), b = 0.1),
+                      control = nls.control(maxiter = 500, warnOnly = TRUE))
+
+
+quad_sum$prop_stipe_pred <- predict(prop_stipe_fit, newdata = quad_sum)
+
+ss_res_prop_stipe <- sum((quad_sum$total_adult_stipes - quad_sum$prop_stipe_pred)^2)
+ss_tot_prop_stipe <- sum((quad_sum$total_adult_stipes - mean(quad_sum$total_adult_stipes))^2)
+r2_prop_stipe <- 1 - ss_res/ss_tot 
+r2_prop_stipe
+
+coef(prop_stipe_fit)
+
+# a = 41 b = 2
+
+
+x_half_prop_stipe <- log(2)/2 # 0.34
+y_half_prop_stipe <- 41 / 2   # 20.4
+
+x_half_prop_stipe
+y_half_prop_stipe
+
+
+
+quad_sum$prop_stipe_pred <- 41 * exp(-2.0 * quad_sum$mean_urch_prop)
+
+
+ggplot(quad_sum, aes(x = mean_urch_prop, y = total_adult_stipes)) +
+  geom_point() +
+  geom_line(aes(y = prop_stipe_pred), color = "blue", size = 1) +
+  geom_vline(xintercept = x_half_prop_stipe, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = y_half_prop_stipe, linetype = "dashed", color = "red") +
+  annotate("text", x = x_half_prop_stipe + 0.02, y = y_half_prop_stipe + 5, 
+           label = paste0("Half-life at x = ", round(x_half_prop_stipe, 2)), 
+           color = "red", hjust = -0.7) +
+  annotate("text", x = 0.7, y = 150, 
+           label = paste0("R² = ", round(r2_prop_stipe, 2)), 
+           color = "red", hjust = 0) +
+  ylim(0, 200) +
+  theme_minimal() +
+  labs(
+    title = "Effect of Exposed Purple Sea Urchins on Kelp Stipitates",
+    x = "Proportion of exposed purple sea urchins",
+    y = "Total adult kelp stipitates"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+
+
 
 # 2. Number of macro plants vs exposed urchins
 
@@ -215,7 +390,54 @@ ggplot(quad_sum,
   theme_minimal() +
   labs(x = "Proportion of exposed purple sea urchins", y = "Total number of recruits and juveniles")
 
-#   facet_wrap(~site_type) +
+prop_recruit_fit <- nls(total_recruit ~ a * exp(-b * mean_urch_prop),
+                      data = quad_sum,
+                      start = list(a = max(quad_sum$total_recruit), b = 0.1),
+                      control = nls.control(maxiter = 500, warnOnly = TRUE))
+
+
+quad_sum$prop_recruit_pred <- predict(prop_recruit_fit, newdata = quad_sum)
+
+ss_res_prop_recruit <- sum((quad_sum$total_recruit - quad_sum$prop_recruit_pred)^2)
+ss_tot_prop_recruit <- sum((quad_sum$total_recruit - mean(quad_sum$total_recruit))^2)
+r2_prop_recruit <- 1 - ss_res/ss_tot 
+r2_prop_recruit
+
+coef(prop_recruit_fit)
+
+# a = 11 b = 1.8
+
+
+x_half_prop_recruit <- log(2)/1.8 # 0.39
+y_half_prop_recruit <- 11 / 2   # 5.5
+
+x_half_prop_recruit
+y_half_prop_recruit
+
+
+
+quad_sum$prop_recruit_pred <- 11 * exp(-1.8 * quad_sum$mean_urch_prop)
+
+
+ggplot(quad_sum, aes(x = mean_urch_prop, y = total_recruit)) +
+  geom_point() +
+  geom_line(aes(y = prop_recruit_pred), color = "blue", size = 1) +
+  geom_vline(xintercept = x_half_prop_recruit, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = y_half_prop_recruit, linetype = "dashed", color = "red") +
+  annotate("text", x = x_half_prop_recruit + 0.02, y = y_half_prop_recruit + 5, 
+           label = paste0("Half-life at x = ", round(x_half_prop_recruit, 2)), 
+           color = "red", hjust = -0.7) +
+  annotate("text", x = 0.7, y = 80, 
+           label = paste0("R² = ", round(r2_prop_recruit, 2)), 
+           color = "red", hjust = 0) +
+  ylim(0, 100) +
+  theme_minimal() +
+  labs(
+    title = "Effect of Exposed Purple Sea Urchins on Kelp Recruitment",
+    x = "Proportion of exposed purple sea urchins",
+    y = "Total kelp recruits and juveniles"
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 ################################################################################
