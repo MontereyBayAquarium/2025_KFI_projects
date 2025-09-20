@@ -448,7 +448,7 @@ ggplot(quad_sum, aes(x = mean_urch_prop, y = total_recruit)) +
 
 # facet_wrap using site_type 
 
-quad_sum$site_type <- factor(quad_sum$site_type, levels = c("BAR", "INCIP", "FOR"))
+quad_sum$site_type <- factor(quad_sum$site_type, levels = c("BAR", "INCIP", "FOR")) #organize site type in correct order
 
 ggplot(quad_sum, 
        aes(x = mean_urch_den, y = total_recruit)) +
@@ -672,22 +672,25 @@ ggplot(quad_long, aes(x = mean_urch_den, y = value)) +
   facet_grid(variable ~ site_type, switch = "y", 
              labeller = 
                labeller(variable = c(
-                total_recruit = "Kelp recruits",
-                total_adult_stipes = "Adult stipitates"))) +
-  theme_classic() +
+                total_recruit = "Kelp recruits and juveniles",
+                total_adult_stipes = "Adult kelp stipitates"))) +
+  theme_minimal() +
   xlim(0, 50) +
   ylim(0, 200) +
   labs(
     x = "Mean purple sea urchin density",
-    y = "") +
+    y = "",
+    title = "Relationship Between Purple Sea Urchin Density on Kelp Recruitment
+    and Persistance Across Patch Types") +
   theme(
     strip.placement = "outside",               # push strips outward
     strip.switch.pad.grid = unit(0.1, "cm"), 
     axis.text.y = element_text(margin = margin(r = 0)) # pull y-ticks inward
-  ) 
-#  geom_text(data = r2_df, 
-#            aes(x = 40, y = 170, label = paste0("R² = ", round(r2, 2))),
-#            inherit.aes = FALSE, color = "red")
+  ) +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  geom_text(data = r2_df, 
+            aes(x = 40, y = 160, label = paste0("R² = ", round(r2, 2))),
+            inherit.aes = FALSE, color = "red")
 
 
 # Calculate r^2 for each fit
@@ -731,18 +734,21 @@ ggplot(quad_long, aes(x = mean_urch_prop, y = value)) +
   facet_grid(variable ~ site_type, switch = "y", 
              labeller = 
                labeller(variable = c(
-                 total_recruit = "Kelp recruits",
-                 total_adult_stipes = "Adult stipitates"))) +
-  theme_classic() +
+                 total_recruit = "Kelp recruits and juveniles",
+                 total_adult_stipes = "Adult kelp stipitates"))) +
+  theme_minimal() +
   ylim(0, 200) +
   labs(
     x = "Proportion of exposed purple sea urchins",
-    y = "") +
+    y = "",
+    title = "Effects of Exposed Purple Sea Urchins on Kelp Recruitment 
+    and Persistance Across Patch Types") +
   theme(
     strip.placement = "outside",               # push strips outward
     strip.switch.pad.grid = unit(0.1, "cm"), 
     axis.text.y = element_text(margin = margin(r = 0)) # pull y-ticks inward
-  ) 
+  ) +
+  theme(plot.title = element_text(hjust = 0.5))
 
 
 # calculate r^2 for proportion exposed
@@ -770,6 +776,10 @@ r2_prop_df <- quad_long %>%
   )
 
 r2_prop_df # yikes, even lower than mean urchin density
+
+
+cor(quad_sum$mean_urch_den, quad_sum$mean_urch_prop) # 1 -> they are interchangeable
+
 
 
 
