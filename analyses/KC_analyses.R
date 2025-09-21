@@ -197,6 +197,8 @@ ggplot(derm_merge_urchin, aes(x = size,
   geom_histogram(binwidth = 1, 
                  color = "white")
 
+?geom_vline
+
 ################################################################################
 # Asking R to do math for me
 
