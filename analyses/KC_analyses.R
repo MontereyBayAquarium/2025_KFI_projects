@@ -190,6 +190,13 @@ ggplot(derm_merge_urchin, aes(x = size_class,
        title = "Dermasterias size class relative to urchin size") + 
   theme_minimal()
 
+# histogram: star size vs. predation fq
+
+ggplot(derm_merge_urchin, aes(x = size, 
+                              weight = count)) + 
+  geom_histogram(binwidth = 1, 
+                 color = "white")
+
 ################################################################################
 # Asking R to do math for me
 
