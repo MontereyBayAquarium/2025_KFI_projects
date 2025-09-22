@@ -190,14 +190,34 @@ ggplot(derm_merge_urchin, aes(x = size_class,
        title = "Dermasterias size class relative to urchin size") + 
   theme_minimal()
 
-# histogram: star size vs. predation fq
+# histogram: star size class vs. predation fq
+
+quartile_urchin <- derm_merge_urchin %>%
+  uncount(weights = count)
+
+q <- quantile(quartile_urchin$size, probs = c(0.33, 0.66))
 
 ggplot(derm_merge_urchin, aes(x = size, 
                               weight = count)) + 
   geom_histogram(binwidth = 1, 
-                 color = "white")
+                 color = "white") + 
+  geom_vline(xintercept = q[1]) + 
+  geom_vline(xintercept = q[2]) + 
+  labs(x = "Star size (cm)", 
+       y = "Urchin size frequency") + 
+  theme_minimal()
 
 ?geom_vline
+
+# scatterplot: star size class vs. urchin size fq
+
+ggplot(derm_merge_urchin, aes(x = size, 
+                              y = urchin_size)) + 
+  geom_point() + 
+  geom_smooth(method = "lm") + 
+  labs(x = "Star size (cm)", 
+       y = "Urchin size (cm)") + 
+  theme_minimal()
 
 ################################################################################
 # Asking R to do math for me
