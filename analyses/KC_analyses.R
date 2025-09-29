@@ -61,6 +61,24 @@ margin_diet_overall <- margin_derm_raw %>%
   )
 
 ################################################################################
+# Consistent colors for all figures
+
+my_colors <- c(
+  "Other" = "#1B9E77", 
+  "Urchin" = "#7570B3", 
+  "Gastropod" = "#D95F02", 
+  "Limpet" = "#E7298A", 
+  "Chiton" = "#66A61E", 
+  "Barnacle" = "#E6AB02"
+)
+
+my_colors_plot3 <- c(
+  "Other prey" = "#1B9E77", 
+  "Urchin" = "#7570B3"
+)
+  
+
+################################################################################
 # Fig. 1 - Plot diet composition
 
 p <- ggplot(diet_overall) +
@@ -71,20 +89,21 @@ p <- ggplot(diet_overall) +
     color = "white", size = 4
   ) +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
-  scale_fill_brewer(palette = "Set2") +  # ✨ Try "Set2", "Dark2", or "Paired"
+  scale_fill_manual(values = my_colors) +
   labs(
-    title = "Diet composition of actively foraging Dermasterias",
     x = "Proportion",
     y = NULL,
-    fill = "Diet", 
-    caption = "Source: J.G. Smith"
+    fill = "Diet"
   ) +
-  theme(
-    axis.text.y = element_blank(),
-    axis.ticks.y = element_blank(),
-    panel.grid = element_blank(),
-    plot.title = element_text(size = 14, hjust = 0.1),
-    legend.text = element_text(size = 7)
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(), 
+        panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.background = element_blank(), 
+        legend.box.background = element_blank(), 
+        legend.text = element_text(size = 7)
   )
 
 p
@@ -100,20 +119,19 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
            fill = diet)) + 
   geom_bar(stat = "identity", 
            position = "fill") + 
-  labs(title = "Diet composition across Dermasterias size classes", 
-       x = "Star size (cm)", 
+  labs(x = "Star size (cm)", 
        y = "Proportion of diet", 
        fill = "Diet") + 
-  scale_fill_brewer(palette = "Set2") + 
-  theme(
-    plot.title = element_text(size = 14, hjust = 0.1), 
-    panel.background = element_blank(),
-    plot.background = element_blank(),
-    panel.grid.major = element_blank(), 
-    panel.grid.minor = element_blank(), 
-    legend.background = element_blank(), 
-    legend.box.background = element_blank(), 
-    legend.text = element_text(size = 7)
+  scale_fill_manual(values = my_colors, 
+                    breaks = c("Other", "Urchin", "Gastropod", "Limpet", "Chiton", "Barnacle")
+                    ) + 
+  theme(panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(), 
+        legend.background = element_blank(), 
+        legend.box.background = element_blank(), 
+        legend.text = element_text(size = 7)
   )
 
 ################################################################################
@@ -137,20 +155,19 @@ ggplot(derm_merge_predation, aes(x = size, weight = count, fill = diet_condensed
   geom_vline(derm_size_avg, 
              mapping = aes(xintercept = size, 
                            linetype = diet_condensed)) + 
-  scale_linetype(labs(title = "Average star size")) + 
-  scale_fill_brewer(palette = "Set2", 
+  scale_linetype(labs(title = "Mean star size (cm)")) + 
+  scale_fill_manual(values = my_colors_plot3, 
                     labs("Diet")) +  
-  labs(title = 'Predation frequency of actively foraging Dermasterias', 
-       x = 'Star size (cm)', 
+  labs(x = 'Star size (cm)', 
        y = 'Predation frequency') + 
-  theme(plot.title = element_text(size = 14, hjust = 0.1), 
-        panel.background = element_blank(),
+  theme(panel.background = element_blank(),
         plot.background = element_blank(),
         panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank(), 
         legend.background = element_blank(), 
         legend.box.background = element_blank(), 
-        legend.text = element_text(size = 7))
+        legend.text = element_text(size = 7)
+  )
 
 ################################################################################
 # Wrangling
@@ -166,31 +183,7 @@ derm_merge_other <- derm_merge_predation %>%
 ################################################################################
 # Visualization
 
-# scatterplot: star size vs. urchin size (all urchin eaters)
-
-ggplot(derm_merge_urchin, aes(x = size, 
-                              y = urchin_size)) + 
-  geom_point() + 
-  geom_smooth(method = "lm") + 
-  labs(x = "Star size (cm)", 
-       y = "Urchin size (cm)", 
-       title = "Dermasterias size relative to urchin size") + 
-  theme_minimal()
-
-# boxplot: size class vs. urchin size
-
-derm_merge_urchin$size_class <- cut(derm_merge_urchin$size, breaks = seq(0, max(derm_merge$size), by = 10))
-# change size class to by 10
-
-ggplot(derm_merge_urchin, aes(x = size_class, 
-                              y = urchin_size)) + 
-  geom_boxplot(show.legend = FALSE) +
-  labs(x = "Star size class (cm)", 
-       y = "Urchin size (cm)", 
-       title = "Dermasterias size class relative to urchin size") + 
-  theme_minimal()
-
-# histogram: star size class vs. predation fq
+# Fig. 4: histogram - star size class vs. predation fq
 
 quartile_urchin <- derm_merge_urchin %>%
   uncount(weights = count)
@@ -200,24 +193,34 @@ q <- quantile(quartile_urchin$size, probs = c(0.33, 0.66))
 ggplot(derm_merge_urchin, aes(x = size, 
                               weight = count)) + 
   geom_histogram(binwidth = 1, 
-                 color = "white") + 
+                 color = "white", 
+                 fill = "#7570B3") + 
   geom_vline(xintercept = q[1]) + 
   geom_vline(xintercept = q[2]) + 
   labs(x = "Star size (cm)", 
-       y = "Urchin size frequency") + 
-  theme_minimal()
+       y = "Predation frequency") + 
+  theme(panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
+  )
 
 ?geom_vline
 
-# scatterplot: star size class vs. urchin size fq
+# Fig. 5: scatterplot - star size vs. urchin size
 
 ggplot(derm_merge_urchin, aes(x = size, 
                               y = urchin_size)) + 
   geom_point() + 
-  geom_smooth(method = "lm") + 
+  geom_smooth(method = "lm", 
+              color = "#7570B3") + 
   labs(x = "Star size (cm)", 
        y = "Urchin size (cm)") + 
-  theme_minimal()
+  theme(panel.background = element_blank(),
+        plot.background = element_blank(),
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank()
+  )
 
 ################################################################################
 # Asking R to do math for me
