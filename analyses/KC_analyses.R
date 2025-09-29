@@ -232,16 +232,15 @@ mean(derm_merge_other$size) # n = 101
 # average urchin size
 mean(derm_merge_urchin$urchin_size) # n = 36
 
-################################################################################
-# Stacked bar with "Other" and "None" - problem = needs to be equal number of observations per quartile
+# urchin prop of diet per star size class
+304-222
+7/82
 
-# derm_merge$size_bin <- cut(derm_merge$size, breaks = seq(0, max(derm_merge$size), by = 5))
+138-91
+22/47
 
-# ggplot(derm_merge, aes(x = size_bin, y = count, fill = diet)) + 
-  # geom_bar(stat = "identity", position = "fill") + 
-  # labs(x = "Dermasterias size (binned, cm)", y = "Proportion of diet") + 
-  # scale_fill_brewer(palette = "Set2") + 
-  # theme_minimal()
+22-14
+7/8
 
 ################################################################################
 # Export
