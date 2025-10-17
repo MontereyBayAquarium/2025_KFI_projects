@@ -171,10 +171,13 @@ ggplot(quad_sum, aes(x = mean_urch_den, y = total_adult_stipes)) +
   geom_line(aes(y = stipepred), color = "blue", size = 1) +
   geom_vline(xintercept = x_half_stipe, linetype = "dashed", color = "red") +
   geom_hline(yintercept = y_half_stipe, linetype = "dashed", color = "red") +
-  #annotate("text", x = x_half_stipe + 2, y = y_half_stipe + 5, 
-   #       label = paste0("Half-life at x = ", round(x_half_stipe, 2)), 
-    #       color = "red", hjust = -0.5) +
   annotate("text", x = 40, y = 150, 
+          label = paste0("a = 67"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 40, y = 135, 
+           label = paste0("b = 0.16"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 40, y = 120, 
            label = paste0("R² =", round(r2_stipe, 2)), 
            color = "red", hjust = 0)  +
   theme_bw() +
@@ -250,12 +253,15 @@ quad_sum$recruitpred <- 27 * exp(-0.26 * quad_sum$mean_urch_den)
 ggplot(quad_sum, aes(x = mean_urch_den, y = total_recruit)) +
   geom_point() +
   geom_line(aes(y = recruitpred), color = "blue", size = 1) +
-  #geom_vline(xintercept = x_half_recruit, linetype = "dashed", color = "red") +
-  #geom_hline(yintercept = y_half_recruit, linetype = "dashed", color = "red") +
-  #annotate("text", x = x_half_recruit + 2, y = y_half_recruit + 5, 
-   #        label = paste0("Half-life at x = ", round(x_half_recruit, 2)), 
-    #       color = "red", hjust = -0.5) +
+  geom_vline(xintercept = x_half_recruit, linetype = "dashed", color = "red") +
+  geom_hline(yintercept = y_half_recruit, linetype = "dashed", color = "red") +
   annotate("text", x = 40, y = 80, 
+           label = paste0("a = 27"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 40, y = 70, 
+           label = paste0("b = 0.26"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 40, y = 60, 
            label = paste0("R² = ", round(r2_recruit, 2)), 
            color = "red", hjust = 0) +
   theme_bw() +
@@ -347,10 +353,13 @@ ggplot(quad_sum, aes(x = mean_urch_prop, y = total_adult_stipes)) +
   geom_line(aes(y = prop_stipe_pred), color = "blue", size = 1) +
   geom_vline(xintercept = x_half_prop_stipe, linetype = "dashed", color = "red") +
   geom_hline(yintercept = y_half_prop_stipe, linetype = "dashed", color = "red") +
-  #annotate("text", x = x_half_prop_stipe + 0.02, y = y_half_prop_stipe + 5, 
-   #        label = paste0("Half-life at x = ", round(x_half_prop_stipe, 2)), 
-    #       color = "red", hjust = -0.7) +
   annotate("text", x = 0.7, y = 150, 
+           label = paste0("a = 41"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 0.7, y = 135, 
+           label = paste0("b = 2"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 0.7, y = 120, 
            label = paste0("R² = ", round(r2_prop_stipe, 2)), 
            color = "red", hjust = 0) +
   theme_bw() +
@@ -432,10 +441,13 @@ ggplot(quad_sum, aes(x = mean_urch_prop, y = total_recruit)) +
   geom_line(aes(y = prop_recruit_pred), color = "blue", size = 1) +
   geom_vline(xintercept = x_half_prop_recruit, linetype = "dashed", color = "red") +
   geom_hline(yintercept = y_half_prop_recruit, linetype = "dashed", color = "red") +
- # annotate("text", x = x_half_prop_recruit + 0.02, y = y_half_prop_recruit + 5, 
-  #         label = paste0("Half-life at x = ", round(x_half_prop_recruit, 2)), 
-   #        color = "red", hjust = -0.7) +
   annotate("text", x = 0.7, y = 80, 
+           label = paste0("a = 11"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 0.7, y = 70, 
+           label = paste0("b = 1.8"), 
+           color = "blue", hjust = 0) +
+  annotate("text", x = 0.7, y = 60, 
            label = paste0("R² = ", round(r2_prop_recruit, 2)), 
            color = "red", hjust = 0) +
   theme_bw() +
