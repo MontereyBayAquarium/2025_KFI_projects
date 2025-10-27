@@ -122,6 +122,7 @@ ggplot(subset(derm_merge, !(diet %in% c("None"))),
   labs(x = "Star size (cm)", 
        y = "Proportion of diet", 
        fill = "Diet") + 
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) + 
   scale_fill_manual(values = my_colors, 
                     breaks = c("Other", "Urchin", "Gastropod", "Limpet", "Chiton", "Barnacle")
                     ) + 
