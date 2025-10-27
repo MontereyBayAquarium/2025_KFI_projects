@@ -64,12 +64,12 @@ margin_diet_overall <- margin_derm_raw %>%
 # Consistent colors for all figures
 
 my_colors <- c(
-  "Other" = "#1B9E77", 
   "Urchin" = "#7570B3", 
   "Gastropod" = "#D95F02", 
   "Limpet" = "#E7298A", 
   "Chiton" = "#66A61E", 
-  "Barnacle" = "#E6AB02"
+  "Barnacle" = "#E6AB02",
+  "Other" = "#1B9E77"
 )
 
 my_colors_plot3 <- c(
@@ -91,7 +91,7 @@ p <- ggplot(diet_overall) +
   scale_x_continuous(labels = scales::percent_format(accuracy = 1)) +
   scale_fill_manual(values = my_colors) +
   labs(
-    x = "Proportion",
+    x = "Proportion of diet",
     y = NULL,
     fill = "Diet"
   ) +
