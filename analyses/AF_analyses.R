@@ -532,7 +532,7 @@ ggplot(quad_long, aes(x = mean_urch_prop, y = value)) +
 
 # Do we need to use both? 
 
-cor(quad_sum$mean_urch_den, quad_sum$mean_urch_prop) # 1 -> they are interchangeable
+cor(quad_long_LDA$mean_urch_den, quad_long_LDA$mean_urch_prop) # 1 -> they are interchangeable
 
 ###############################################################################
 
@@ -662,6 +662,74 @@ ggplot(quad_long_LDA, aes(x = mean_urch_den, y = value)) +
   geom_text(data = r2_df_LDA, 
             aes(x = 40, y = 100, label = paste0("R² = ", round(r2, 2))),
             inherit.aes = FALSE, color = "red")
+
+### Proportion of Exposed Urchins
+
+# calculate r^2 for proportion of exposed urchins
+
+r2_prop_LDA <- quad_long_LDA %>%
+  group_by(site_type, variable) %>%
+  summarise(
+    r2 = {
+      df <- cur_data()
+      fit <- tryCatch(
+        nls(value ~ a * exp(-b * mean_urch_prop),
+            data = df,
+            start = list(a = max(df$value), b = 0.1),
+            control = nls.control(maxiter = 200, warnOnly = TRUE)),
+        error = function(e) NULL
+      )
+      if (!is.null(fit)) {
+        preds <- predict(fit)
+        ss_res <- sum((df$value - preds)^2)
+        ss_tot <- sum((df$value - mean(df$value))^2)
+        1 - ss_res/ss_tot
+      } else NA
+    },
+    .groups = "drop"
+  )
+
+r2_prop_LDA # lower than mean urchin density
+
+
+# nls facet grid ggplot with proportion of urchins exposed
+
+ggplot(quad_long_LDA, aes(x = mean_urch_prop, y = value)) +
+  geom_point(size = 1.1,
+             alpha = 0.8) +
+  geom_smooth(
+    method = "nls",
+    formula = y ~ a * exp(-b * x),
+    method.args = list(start = list(a = max(quad_long_LDA$value), b = 0.1)),
+    se = FALSE,
+    color = "blue"
+  ) +
+  facet_grid(variable ~ site_type, switch = "y", 
+             labeller = 
+               labeller(variable = c(
+                 total_recruit = "Kelp recruits",
+                 total_adult_stipes = "Adult kelp stipitates"),
+                 site_type = c(
+                   BAR = "Barren",
+                   INCIP = "Incipient",
+                   FOR = "Forest"
+                 ))) +
+  theme_minimal() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank(),
+        strip.placement = "outside",               # push strips outward
+        strip.switch.pad.grid = unit(0.1, "cm"), 
+        axis.text.y = element_text(margin = margin(r = 0)), # pull y-ticks inward
+        plot.title = element_text(hjust = 1.5),
+        axis.title.x = element_text(size = 13),
+        strip.text = element_text(size = 13),
+        strip.text.x.top = element_text(size = 13),
+        title = element_text(size = 13)) + 
+  ylim(0, 200) +
+  labs(
+    x = "Proportion of exposed purple urchins",
+    y = "",
+    title = "Effects of urchin behavior on kelp dynamics across patch type")
 
 
 ###############################################################################
