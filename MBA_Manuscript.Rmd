@@ -1,0 +1,38 @@
+---
+title: "MBA_Manuscript"
+author: "Sabrina Grant"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#installing packages
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr", "broom")
+
+#load data
+drive_deauth()
+
+
+drive_auth(
+  scopes = "https://www.googleapis.com/auth/drive"
+)
+
+
+drive_auth(scopes = "https://www.googleapis.com/auth/drive")
+
+file <- drive_find("kelp_recovery_data.rda",
+                   shared_drive = "MBA_kelp_recovery_research")
+file
+
+drive_download(
+  as_id(file$id),
+  path = "kelp_recovery_data.rda",
+  overwrite = TRUE
+)
+
+load("kelp_recovery_data.rda")
+ls()
+```
+
