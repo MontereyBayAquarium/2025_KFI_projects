@@ -4,28 +4,20 @@ author: "Sabrina Grant"
 date: "`r Sys.Date()`"
 output: html_document
 ---
-
+#Import packages and data
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
 #installing packages
-librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr", "broom")
+librarian::shelf("tidyverse", "vegan", "ggplot2", "dplyr", "car", "ggpubr", "minpack.lm", "googledrive", "janitor", "nlme", "RColorBrewer", "splitstackshape", "lubridate", "matrixStats", "readr", "stringr", "broom", "MASS", "caret", "grid", "reshape2", "viridis", "tibble", "ggpattern", "pairwiseAdonis")
 
 #load data
 drive_deauth()
-
-
-drive_auth(
-  scopes = "https://www.googleapis.com/auth/drive"
-)
-
-
 drive_auth(scopes = "https://www.googleapis.com/auth/drive")
+
 
 file <- drive_find("kelp_recovery_data.rda",
                    shared_drive = "MBA_kelp_recovery_research")
-file
-
 drive_download(
   as_id(file$id),
   path = "kelp_recovery_data.rda",
@@ -34,5 +26,1373 @@ drive_download(
 
 load("kelp_recovery_data.rda")
 ls()
+```
+
+#Data frame cleaning
+```{r}
+###averaging counts and % cover per transect
+
+#helper function to get the most common value (mode)
+get_mode <- function(x) {
+  ux <- na.omit(unique(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+
+#averaging across quads
+quad_transect_avgs <- quad_data %>%
+  group_by(site, site_type, zone, survey_date, transect) %>%
+  summarise(
+    across(where(is.numeric) & !any_of("quadrat"), ~ mean(.x, na.rm = TRUE)),
+    substrate = get_mode(substrate),
+    .groups = "drop")
+
+#now averaging per survey 
+quad_avgs <- quad_transect_avgs %>%
+  group_by(site, site_type, zone, survey_date) %>%
+  #creating new column that has proportion of concealed urchins
+  mutate(
+    prop_purp_concealedm2 = if_else(
+      purple_urchin_densitym2 > 0,
+      purple_urchin_conceiledm2 / purple_urchin_densitym2,
+      0),
+    prop_red_concealedm2 = if_else(
+      red_urchin_densitym2 > 0,
+      red_urchin_conceiledm2 / red_urchin_densitym2,
+      0)) %>%
+  #dropping the old concealed density columns
+  dplyr::select(-purple_urchin_conceiledm2, -red_urchin_conceiledm2) %>%
+  #summarise by group
+  summarise(
+    across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)),
+    substrate = get_mode(substrate),
+    .groups = "drop" )
+
+
+#averaging kelp transects
+kelp_avgs <- kelp_data %>%
+  group_by(site, site_type, zone, survey_date) %>%
+  summarise( 
+    across(where(is.numeric) & !any_of("transect"), ~mean(.x, na.rm = TRUE)), 
+    .groups = "drop") 
+
+#combining quad and kelp data frames 
+merged_data <- kelp_avgs %>%
+  #keeping coordinates from kelp_avgs
+  left_join(
+    quad_avgs %>% dplyr::select(-latitude, -longitude),  # drop coords from quad_avgs before join
+    by = c("site", "site_type", "zone", "survey_date")
+  ) %>%
+  mutate(year = as.numeric(format(survey_date, "%Y")))
+
+#creating a new column that just has years for future analysis  
+merged_data$year <- as.numeric(format(merged_data$survey_date, "%Y"))
+
+#standardizing kelp counts to quad data 
+
+#identify columns that contain "20m2"
+cols_to_scale <- grep("20m2", names(merged_data), value = TRUE)
+
+#divide those columns by 20 to get density / m2
+merged_data[cols_to_scale] <- lapply(merged_data[cols_to_scale], function(x) x / 20)
+
+#rename those columns by removing "20m2_"
+names(merged_data)[names(merged_data) %in% cols_to_scale] <-
+  gsub("20m2","", cols_to_scale)
+
+#replaces NAs with zero
+merged_data[sapply(merged_data, is.numeric)] <-
+  lapply(merged_data[sapply(merged_data, is.numeric)],
+         function(x) { x[is.na(x)] <- 0; x })  
+```
+
+#Normalizing (z-score) data to compare UPC and Swath algae
+```{r}
+norm_data <- merged_data %>%
+  mutate(year = as.factor(year)) %>% #making year a factor instead of numeric
+  mutate(site_type = as.factor(site_type)) %>%
+  dplyr::select(site, site_type, zone, year, where(is.numeric)) %>%
+  dplyr::select(-any_of(c("longitude", "latitude", "relief_cm", "risk_index"))) %>% #getting rid of columns I don't care about
+  dplyr::mutate(across(where(is.numeric), scale)) #z-scoring data
+```
+
+#2024 data 
+```{r}
+#filtering for 2024 data 
+year_one_data <- merged_data %>% 
+  filter(year == 2024) %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_, everything()) %>%
+  mutate(site_type = as.factor(site_type))
+
+
+#getting mean of numeric values across grouping categories
+year_one_data %>%
+  group_by(site, site_type, zone, year) %>%
+  summarise(
+    across(where(is.numeric), \(x) mean(x, na.rm = TRUE)),
+    .groups = "drop")
+```
+#2024 data (z-scored) 
+```{r}
+#filtering for 2024 data 
+z_year_one_data <- norm_data %>% 
+  filter(year == 2024) %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_, everything())
+
+#getting mean of numeric values across grouping categories
+z_year_one_data %>%
+  group_by(site, site_type, zone, year) %>%
+  summarise(
+    across(where(is.numeric), \(x) mean(x, na.rm = TRUE)),
+    .groups = "drop")
+```
+#Q1: Distinct algal communities per patch type 
+####LDA on 2024 data at the depth zone level
+```{r}
+#run lda model
+#first, i want to try it with as few variables as possible and focus mainly on the kelp species. this will tell me if macroalgae is a good indicator of patch type 
+lda_model_1 <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + lamr + macr + macj + nerj + ptej + lsetj + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live, data = year_one_data)
+
+#lda summary
+lda_model_1
+
+#getting predictions etc etc 
+pred_1 <- predict(lda_model_1)
+pred_class_1 <- pred_1$class
+
+
+#getting % accuracy
+confusionMatrix(pred_class_1, year_one_data$site_type)
+#predicts at 81% accuracy 
+
+```
+####LDA Model of 2024 Patch Types
+```{r}
+# Get LDA scores 
+lda_scores <- as.data.frame(predict(lda_model_1)$x) 
+lda_scores$site_type <- year_one_data$site_type 
+
+# Plot LD1 vs LD2 
+ggplot(lda_scores, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) + geom_point(size = 3.5, alpha = 0.9) + 
+  stat_ellipse(level = 0.95, size = 1, alpha = 0.6) + 
+  scale_color_brewer(palette = "Set1") + 
+  theme_classic(base_size = 16) + 
+  labs( title = "", subtitle = "", x = paste0("LD1 (", round(lda_model$svd[1]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), y = paste0("LD2 (", round(lda_model$svd[2]^2 / sum(lda_model$svd^2) * 100, 1), "%)"), color = "Site Type", shape = "Site Type" ) + 
+  theme( plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)), plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)), axis.title = element_text(face = "bold", size = 15), axis.text = element_text(size = 13), legend.title = element_text(face = "bold", size = 14), legend.text = element_text(size = 12), panel.grid.minor = element_blank(), panel.grid.major = element_line(color = "white", linewidth = 0.3) )
+```
+####Coefficients of LDA model
+```{r}
+# Get coefficients into tidy format
+coef_df <- as.data.frame(lda_model_1$scaling)
+coef_df$variable <- rownames(coef_df)
+coef_long <- pivot_longer(coef_df, cols = c(LD1, LD2), names_to = "LD", values_to = "coefficient")
+```
+##LDA on Z-Scored Data **using this from here on out 
+```{r}
+lda_model_z <- lda(site_type ~ macro_stipe_density_ + density_ptecal + density_nerlue + density_lamset + density_eisarb + density_lamstump + density_macstump + lamr + macr + macj + nerj + ptej + lsetj + cov_articulated_coralline + cov_crustose_coralline + cov_encrusting_red + cov_fleshy_red + cov_stephanocystis + cov_dictyoneurum_spp  + cov_desmarestia_spp + cov_lam_holdfast_live + cov_mac_holdfast_live, data = z_year_one_data)
+
+#lda summary
+lda_model_z
+
+#getting predictions etc etc 
+pred_z <- predict(lda_model_z)
+pred_class_z <- pred_z$class
+
+
+#getting % accuracy
+confusionMatrix(pred_class_z, z_year_one_data$site_type)
+#predicts at 81% accuracy which is the same as non z scored
+```
+
+##Supplemental Figure 1: LDA Model 
+```{r}
+# Get LDA scores 
+lda_scores_z <- as.data.frame(predict(lda_model_z)$x) 
+lda_scores_z$site_type <- z_year_one_data$site_type 
+
+# Plot LD1 vs LD2 
+ggplot(lda_scores_z, aes(x = LD1, y = LD2, color = site_type, shape = site_type)) + geom_point(size = 3.5, alpha = 0.9) + 
+  stat_ellipse(level = 0.95, size = 1, alpha = 0.6) + 
+  scale_color_brewer(palette = "Set1") + 
+  theme_classic(base_size = 16) + 
+  labs( title = "", subtitle = "", x = paste0("LD1 (", round(lda_model_z$svd[1]^2 / sum(lda_model_z$svd^2) * 100, 1), "%)"), y = paste0("LD2 (", round(lda_model_z$svd[2]^2 / sum(lda_model_z$svd^2) * 100, 1), "%)"), color = "Site Type", shape = "Site Type" ) + 
+  theme( plot.title = element_text(face = "bold", size = 20, hjust = 0.5, margin = margin(b = 10)), plot.subtitle = element_text(size = 14, hjust = 0.5, margin = margin(b = 15)), axis.title = element_text(face = "bold", size = 15), axis.text = element_text(size = 13), legend.title = element_text(face = "bold", size = 14), legend.text = element_text(size = 12), panel.grid.minor = element_blank(), panel.grid.major = element_line(color = "white", linewidth = 0.3) )
+```
+###Supplemental Table 1: Coefficients 
+```{r}
+# Get coefficients into tidy format
+coef_z <- as.data.frame(lda_model_z$scaling)
+coef_z$variable <- rownames(coef_z)
+coef_long <- pivot_longer(coef_z, cols = c(LD1, LD2), names_to = "LD", values_to = "coefficient")
+```
+
+
+
+
+
+##Figure 2a: Density of kelp across patch types in 2024
+```{r}
+#mapping adult + juvenile + recruit columns to a species label
+kelp_map <- tribble(
+  ~species,                  ~Adults,              ~Juveniles,     ~Recruits,
+  "Nereocystis luetkeana",   "density_nerlue",        "nerj",         NA_character_,
+  "Pterygophora californica","density_ptecal",        "ptej",         NA_character_,
+  "Laminaria setchellii",    "density_lamset",        "lsetj",        NA_character_,
+  "Eisenia arborea",         "density_eisarb",        "eisj",         NA_character_,
+  "Macrocystis pyrifera",    "macro_stipe_density_",  "macj",         "macr",
+  "Laminariales spp.",       NA_character_,           NA_character_,  "lamr")
+
+#building a NA-safe vector of column names to pull from year_one_data
+kelp_cols <- kelp_map %>%
+  dplyr::select(Adults, Juveniles, Recruits) %>%
+  unlist(use.names = FALSE) %>%
+  as.character() %>%
+  na.omit() %>%
+  unique()
+
+kelp_lookup <- kelp_map %>%
+  pivot_longer(
+    cols = c(Adults, Juveniles, Recruits),
+    names_to = "stage",
+    values_to = "var",
+    values_drop_na = TRUE)
+
+kelp_long <- year_one_data %>%
+  dplyr::select(site_type, all_of(kelp_cols)) %>%
+  pivot_longer(-site_type, names_to = "var", values_to = "density") %>%
+  left_join(kelp_lookup, by = "var") %>%
+  filter(!is.na(species))
+
+
+#getting the density of nereo adults and juvenles at each patch type in 2024
+kelp_avgs <- kelp_long %>%
+  mutate(
+    site_type = factor(site_type, levels = c("BAR", "INCIP", "FOR")),
+    stage     = factor(stage, levels = c("Adults", "Juveniles", "Recruits")),
+    species   = factor(species)) %>%
+  group_by(site_type, species, stage) %>%
+  summarise(
+    n    = sum(!is.na(density)),
+    mean = mean(density, na.rm = TRUE),
+    se   = sd(density, na.rm = TRUE) / sqrt(n),
+    .groups = "drop")
+
+#plotting
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = stage)) +
+  geom_col(position = position_dodge(width = 0.57), 
+           width = 0.5,
+           color = "black",
+           linewidth = 0.35) + 
+  geom_errorbar(aes(ymin = pmax(mean-se,0),ymax=mean+se), 
+                position = position_dodge(width=0.57), 
+                width = 0.18, 
+                linewidth = 0.35)+ 
+facet_wrap(~species, scales = "free_y") + 
+  scale_fill_brewer(palette = "Paired", drop = FALSE) +
+  ylab("Density (individuals / m²)") +
+  xlab("Patch Type (2024)") +
+  labs(fill = "Life Stage") +
+  theme_classic(base_size = 11)
+
+
+pd <- position_dodge2(width = 0.6, preserve = "single")
+
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = species)) +
+  geom_col(
+    position = pd,
+    width = 2,
+    color = "black",
+    linewidth = 0.35) +
+  geom_errorbar(
+    aes(ymin = pmax(mean - se, 0), ymax = mean + se),
+    position = pd,
+    width = 2,
+    linewidth = 0.35) +
+  facet_wrap(~ stage, scales = "free_y") +
+  ylab("Density (individuals / m²)") +
+  xlab("Patch Type (2024)") +
+  labs(fill = "Species") +
+  theme_classic(base_size = 11) +
+  scale_fill_brewer(palette = "Paired", drop = TRUE) +
+  theme(
+    panel.spacing = grid::unit(0.6, "lines"),
+    legend.position = "top",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9))
+
+ggsave(
+  "Fig_kelp_density_by_stage.png",
+  width = 7,
+  height = 5,
+  units = "in",
+  dpi = 600
+)
+
+```
+
+##Figure 2b: Density of kelp across patch types in 2025
+```{r}
+
+kelp_long <- year_two_data %>%
+  dplyr::select(site_type, all_of(kelp_cols)) %>%
+  pivot_longer(-site_type, names_to = "var", values_to = "density") %>%
+  left_join(kelp_lookup, by = "var") %>%
+  filter(!is.na(species))
+
+
+#getting the density of nereo adults and juvenles at each patch type in 2024
+kelp_avgs <- kelp_long %>%
+  mutate(
+    site_type = factor(site_type, levels = c("BAR", "INCIP", "FOR")),
+    stage     = factor(stage, levels = c("Adults", "Juveniles", "Recruits")),
+    species   = factor(species)) %>%
+  group_by(site_type, species, stage) %>%
+  summarise(
+    n    = sum(!is.na(density)),
+    mean = mean(density, na.rm = TRUE),
+    se   = sd(density, na.rm = TRUE) / sqrt(n),
+    .groups = "drop")
+
+#plotting
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = stage)) +
+  geom_col(position = position_dodge(width = 0.57), 
+           width = 0.5,
+           color = "black",
+           linewidth = 0.35) + 
+  geom_errorbar(aes(ymin = pmax(mean-se,0),ymax=mean+se), 
+                position = position_dodge(width=0.57), 
+                width = 0.18, 
+                linewidth = 0.35)+ 
+facet_wrap(~species, scales = "free_y") + 
+  scale_fill_brewer(palette = "Paired", drop = FALSE) +
+  ylab("Density (individuals / m²)") +
+  xlab("2025 Patch Type") +
+  labs(fill = "Life Stage") +
+  theme_classic(base_size = 11)
+
+
+pd <- position_dodge2(width = 0.6, preserve = "single")
+
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = species)) +
+  geom_col(
+    position = pd,
+    width = 2,
+    color = "black",
+    linewidth = 0.35) +
+  geom_errorbar(
+    aes(ymin = pmax(mean - se, 0), ymax = mean + se),
+    position = pd,
+    width = 2,
+    linewidth = 0.35) +
+  facet_wrap(~ stage, scales = "free_y") +
+  ylab("Density (individuals / m²)") +
+  xlab("2025 Patch Type") +
+  labs(fill = "Species") +
+  theme_classic(base_size = 11) +
+  scale_fill_brewer(palette = "Paired", drop = TRUE) +
+  theme(
+    panel.spacing = grid::unit(0.6, "lines"),
+    legend.position = "top",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9))
+
+ggsave(
+  "Fig_kelp_density_by_stage.png",
+  width = 7,
+  height = 5,
+  units = "in",
+  dpi = 600
+)
+```
+
+##Figure 2c: Density of kelps averages across years 
+```{r}
+
+kelp_long <- merged_data %>%
+  dplyr::select(site_type, all_of(kelp_cols)) %>%
+  pivot_longer(-site_type, names_to = "var", values_to = "density") %>%
+  left_join(kelp_lookup, by = "var") %>%
+  filter(!is.na(species))
+
+
+#getting the density of nereo adults and juvenles at each patch type in 2024
+kelp_avgs <- kelp_long %>%
+  mutate(
+    site_type = factor(site_type, levels = c("BAR", "INCIP", "FOR")),
+    stage     = factor(stage, levels = c("Adults", "Juveniles", "Recruits")),
+    species   = factor(species)) %>%
+  group_by(site_type, species, stage) %>%
+  summarise(
+    n    = sum(!is.na(density)),
+    mean = mean(density, na.rm = TRUE),
+    se   = sd(density, na.rm = TRUE) / sqrt(n),
+    .groups = "drop")
+
+#plotting
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = stage)) +
+  geom_col(position = position_dodge(width = 0.57), 
+           width = 0.5,
+           color = "black",
+           linewidth = 0.35) + 
+  geom_errorbar(aes(ymin = pmax(mean-se,0),ymax=mean+se), 
+                position = position_dodge(width=0.57), 
+                width = 0.18, 
+                linewidth = 0.35)+ 
+facet_wrap(~species, scales = "free_y") + 
+  scale_fill_brewer(palette = "Paired", drop = FALSE) +
+  ylab("Density (individuals / m²)") +
+  xlab("2024 Patch Type") +
+  labs(fill = "Life Stage") +
+  theme_classic(base_size = 11)
+
+
+pd <- position_dodge2(width = 0.6, preserve = "single")
+
+ggplot(kelp_avgs, aes(x = site_type, y = mean, fill = species)) +
+  geom_col(
+    position = pd,
+    width = 2,
+    color = "black",
+    linewidth = 0.35) +
+  geom_errorbar(
+    aes(ymin = pmax(mean - se, 0), ymax = mean + se),
+    position = pd,
+    width = 2,
+    linewidth = 0.35) +
+  facet_wrap(~ stage, scales = "free_y") +
+  ylab("Density (individuals / m²)") +
+  xlab("2024 Patch Type") +
+  labs(fill = "Species") +
+  theme_classic(base_size = 11) +
+  scale_fill_brewer(palette = "Paired", drop = TRUE) +
+  theme(
+    panel.spacing = grid::unit(0.6, "lines"),
+    legend.position = "top",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9))
+
+ggsave(
+  "Fig_kelp_density_by_stage.png",
+  width = 7,
+  height = 5,
+  units = "in",
+  dpi = 600
+)
+
+```
+##Figure 3a: Prop Abundance Percent cover
+```{r}
+#UPC species
+cov_lookup <- year_one_data %>%
+  dplyr::select(site, zone, site_type,
+                cov_articulated_coralline,
+                cov_crustose_coralline,
+                cov_encrusting_red,
+                cov_fleshy_red,
+                cov_stephanocystis,
+                cov_dictyoneurum_spp,
+                cov_desmarestia_spp,
+                cov_lam_holdfast_live,
+                cov_mac_holdfast_live) %>%
+  #creating functional groups
+  dplyr::mutate(
+    Corallines = cov_articulated_coralline + cov_crustose_coralline,
+    Reds      = cov_encrusting_red + cov_fleshy_red,
+    Browns    = cov_stephanocystis + cov_dictyoneurum_spp + cov_desmarestia_spp,
+    Holdfasts = cov_lam_holdfast_live + cov_mac_holdfast_live) %>%
+  #pivoting grouped categories
+  pivot_longer(
+    cols = c(Corallines, Reds, Browns, Holdfasts),
+    names_to = "group",
+    values_to = "cover")
+
+#averages by group  
+cov_avgs <- cov_lookup %>%
+  group_by(site_type, group) %>%
+  summarise(
+    n = sum(!is.na(cover)),
+    mean = mean(cover, na.rm = TRUE),
+    se = sd(cover, na.rm = TRUE) / sqrt(n),
+    .groups = "drop")
+
+#getting patch type in order
+cov_avgs$site_type <- factor(
+  cov_avgs$site_type,
+  levels = c("BAR", "INCIP", "FOR"))
+
+#plotting
+ggplot(cov_avgs, aes(x = site_type, y = mean,
+           fill = site_type,
+           pattern = site_type)) +
+geom_col_pattern(
+    color = "black",
+    pattern_fill = "grey70",
+    pattern_density = 0.4,
+    pattern_spacing = 0.07) +
+geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.2) +
+facet_wrap(~ group, scales = "free_y") +
+scale_fill_manual(values = c(
+    "BAR"   = "white",
+    "INCIP" = "white",
+    "FOR"   = "grey")) +
+  scale_pattern_manual(values = c(
+    "BAR"   = "none",
+    "INCIP" = "stripe",
+    "FOR"   = "none")) +
+  labs(x = "Patch type (2024)",
+       y = "Mean percent cover (± SE)") +
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggsave(
+  "avg_percent_cov.png",
+  width = 7,
+  height = 5,
+  units = "in",
+  dpi = 600
+)
+
+
+#plotting
+ggplot(cov_avgs, aes(x = group, y = mean,
+           fill = group,
+           pattern = group)) +
+geom_col_pattern(
+    color = "black",
+    pattern_fill = "grey70",
+    pattern_density = 0.4,
+    pattern_spacing = 0.05) +
+geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.2) +
+facet_wrap(~ site_type) +
+scale_fill_manual(values = c(
+    "Corallines"   = "white",
+    "Browns" = "white",
+    "Holdfasts"   = "grey", 
+    "Reds" = "darkgrey")) +
+  scale_pattern_manual(values = c(
+     "Corallines"   = "stripe",
+    "Browns" = "none",
+    "Holdfasts"   = "none", 
+    "Reds" = "none")) +
+  labs(x = "Patch type (2024)",
+       y = "Mean percent cover (± SE)") +
+  theme_classic() +
+  theme(legend.position = "none", 
+    axis.text.x = element_text(angle = 30, hjust = 1, face = "bold", size = 11))
+
+ggplot(cov_avgs, aes(x = group, y = mean,
+           fill = group,
+           pattern = group)) +
+geom_col_pattern(
+    color = "black",
+    pattern_fill = "grey70",
+    pattern_density = 0.4,
+    pattern_spacing = 0.05) +
+geom_errorbar(aes(ymin = mean - se, ymax = mean + se),
+                width = 0.2) +
+facet_wrap(~ site_type) +
+scale_fill_manual(values = c(
+    "Corallines"   = "white",
+    "Browns" = "white",
+    "Holdfasts"   = "grey", 
+    "Reds" = "darkgrey")) +
+  scale_pattern_manual(values = c(
+     "Corallines"   = "stripe",
+    "Browns" = "none",
+    "Holdfasts"   = "none", 
+    "Reds" = "none")) +
+  labs(x = "Patch type (2024)",
+       y = "Mean percent cover (± SE)") +
+  theme_classic() +
+  theme(legend.position = "none", 
+    axis.text.x = element_text(angle = 30, hjust = 1, face = "bold", size = 11))
+
+#averages by species
+cov_species_avgs <- cov_lookup %>%
+  pivot_longer(
+    cols = starts_with("cov_"),
+    names_to = "species",
+    values_to = "species_cover") %>%
+  group_by(site_type, species) %>%
+  summarise(
+    n = sum(!is.na(species_cover)),
+    mean = mean(species_cover, na.rm = TRUE),
+    se = sd(species_cover, na.rm = TRUE) / sqrt(n),
+    .groups = "drop")
+
+sp_key <- tibble::tribble(
+  ~species,                         ~code,   ~fg,
+  "cov_articulated_coralline",       "ACA",    "Coralline Algae",
+  "cov_crustose_coralline",          "CCA",    "Coralline Algae",
+  "cov_encrusting_red",              "ER",      "Red Algae", 
+  "cov_fleshy_red",                  "FR",       "Red Algae", 
+  "cov_stephanocystis",              "STEPH.",    "Brown Algae", 
+  "cov_dictyoneurum_spp",           "DICTYO. SPP.",    "Brown Algae",
+   "cov_desmarestia_spp",            "DESMAR. SPP.", "Brown Algae", 
+  "cov_lam_holdfast_live",           "LAM HF", "Kelp Holdfasts",
+  "cov_mac_holdfast_live",           "MAC HF",   "Kelp Holdfasts")
+
+fg_pal <- c(
+  "Coralline Algae" = "coral1",
+  "Red Algae" = "firebrick",
+  "Brown Algae" = "orange4", 
+  "Kelp Holdfasts" = "green4"
+)
+
+code_order <- c(
+  "ACA", "CCA",        # corallines
+  "ER", "FR",          # red algae
+  "STEPH.", "DICTYO. SPP.", "DESMAR. SPP.",   # brown algae
+  "LAM HF", "MAC HF"   # holdfasts
+)
+
+cov_plot <- cov_species_avgs %>%
+  left_join(sp_key, by = "species") %>%
+  mutate(code = ifelse(is.na(code), species, code)) %>% # fallback if missing 
+mutate(code = factor(code, levels = code_order))
+
+ggplot(cov_plot, aes(x = code, y = mean, fill = fg)) +
+  geom_col(color="black", position = "stack") +
+ # geom_errorbar(aes(ymin = mean - se, ymax = mean + se), width = 0.2) +
+  facet_wrap(~ site_type) +
+scale_fill_manual(values = fg_pal, drop = FALSE)+
+  labs(x = "Patch type (2024)",
+       y = "Mean percent cover (± SE)",
+       fill = "Functional group") +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, face = "bold", size = 9))
+
+#ggsave(
+  "avg_percent_cov.png",
+  width = 7,
+  height = 5,
+  units = "in",
+  dpi = 600
+)
+
+
+
+```
+
+
+#Q2: Demonstrated pattern of algal dominance in kelp recovery
+##LDA model on 2025 data 
+```{r}
+#filtering for 2025 data 
+z_year_two_data <- norm_data %>% 
+  filter(year == 2025) %>%
+  dplyr::select(year, site, zone, site_type, macro_stipe_density_, everything())
+
+#getting mean of numeric values across grouping categories
+z_year_two_data %>%
+  group_by(site, site_type, zone, year) %>%
+  summarise(
+    across(where(is.numeric), \(x) mean(x, na.rm = TRUE)),
+    .groups = "drop")
+
+#predicting 2025 patch types based on 2024 LDA model
+z_year_two_data <- z_year_two_data %>%
+  mutate(site_type_pred = predict(lda_model_z, newdata = .)$class) %>%
+  dplyr::select(year, site, zone, site_type, site_type_pred, everything())
+
+
+#setting up the 2025 df with the predictions column 
+z_year_one_data <- z_year_one_data %>%
+  mutate(site_type_pred = predict(lda_model_z, newdata = .)$class) %>%
+  dplyr::select(year, site, zone, site_type, site_type_pred, everything())
+
+
+##REJOINING 2024 AND 2025 DFS
+mergedz <- z_year_one_data %>%
+  dplyr::select(site, zone, site_type, site_type_pred_2024 = site_type_pred) %>%
+  left_join(z_year_two_data %>%
+    dplyr::select(site, zone, site_type, site_type_pred_2025 = site_type_pred),
+    by = c("site", "zone", "site_type"))
+
+```
+##Supplemental Figure 1: Heatmap of patch-type transitions from 2024 to 2025 (on z-scored data)
+```{r}
+# Melt the table
+cross_tab_melt <- reshape2::melt(cross_tab)
+
+# changing the order of the variables for my plot
+desired_order_2024 <- c("BAR", "INCIP", "FOR") 
+desired_order_2025 <- c("BAR", "INCIP", "FOR")  
+
+# Convert to factors with specified levels
+cross_tab_melt$Var1 <- factor(cross_tab_melt$Var1, levels = desired_order_2024)
+cross_tab_melt$Var2 <- factor(cross_tab_melt$Var2, levels = desired_order_2025)
+
+#map colors
+my_colors <- brewer.pal(11, "Blues")
+
+# Sleek publication-ready heatmap
+ggplot(cross_tab_melt, aes(x = Var1, y = Var2, fill = value)) +
+  geom_tile(color = "grey90", linewidth = 0.3) +
+  geom_text(aes(label = value), 
+            color = ifelse(cross_tab_melt$value > max(cross_tab_melt$value)/2, "white", "black"), 
+            size = 5, fontface = "bold") +
+ scale_fill_gradientn(colors = my_colors) +
+  labs(
+    x = "2024",
+    y = "2025",
+    title = "Transition of Predicted Patch Types from 2024 to 2025",
+    fill = "Count"
+  ) +
+  theme_minimal(base_size = 15) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1, face = "bold", size = 13),
+    axis.text.y = element_text(face = "bold", size = 13),
+    axis.title = element_text(face = "bold", size = 14),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 18, margin = margin(b = 10)),
+    legend.title = element_text(face = "bold", size = 13),
+    legend.text = element_text(size = 12),
+    panel.grid = element_blank()
+  )
+```
+
+#Patch transition df of normalized data
+```{r}
+predictions_df <- mergedz %>%
+  left_join(norm_data, by = c("site", "zone", "site_type")) %>%
+  dplyr::select(c(site,zone,site_type_pred_2024,site_type_pred_2025, macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, density_eisarb, density_lamstump, density_macstump, lamr , macr , macj , nerj , ptej , lsetj , cov_articulated_coralline , cov_crustose_coralline , cov_encrusting_red , cov_fleshy_red , cov_stephanocystis , cov_dictyoneurum_spp  , cov_desmarestia_spp , cov_lam_holdfast_live ,cov_mac_holdfast_live,year))
+
+patch_transitions <- predictions_df %>%
+  mutate(
+    # assign the correct prediction for each year
+    predicted_patch_type = case_when(
+      year == 2024 ~ as.character(site_type_pred_2024),
+      year == 2025 ~ as.character(site_type_pred_2025),
+      TRUE ~ NA_character_
+    ),
+    # create the transition column
+    patch_transition = paste(site_type_pred_2024, "→", site_type_pred_2025)
+  ) %>%
+  # drop the old wide prediction columns, keep everything else (including species)
+  dplyr::select(site, zone, year, predicted_patch_type, patch_transition, everything(), -site_type_pred_2024, -site_type_pred_2025)
+
+
+#creating groupings that I want for nmds
+patch_groupings <- patch_transitions %>%
+  mutate(patches_groups = case_when(
+    year == 2024 & predicted_patch_type == "BAR" ~ "2024 Barrens",
+    year == 2024 & predicted_patch_type == "INCIP" ~ "2024 Incipients",
+    year == 2024 & predicted_patch_type == "FOR" ~ "2024 Forests", 
+    year == 2025 & patch_transition %in% c("BAR → INCIP") ~ "2025 Recovered Incipient Patches",
+    year == 2025 & patch_transition %in% c("BAR → FOR", "INCIP → FOR") ~ "2025 Recovered Forest Patches",
+    year == 2025 & patch_transition %in% c("BAR → BAR") ~ "2025 Persistant Barren Patches",
+    year == 2025 & patch_transition %in% c("FOR → FOR") ~ "2025 Persistant Forest Patches",
+    year == 2025 & patch_transition %in% c("INCIP → INCIP") ~ "2025 Persistant Incipient Patches",
+    year == 2025 & patch_transition %in% c("INCIP → BAR", "FOR → BAR") ~ "2025 Regressed Barren Patches",
+    year == 2025 & patch_transition %in% c("FOR → INCIP") ~ "2025 Regressed Incipient Patches",
+    TRUE ~ NA_character_))
+```
+
+#Patch transition df of raw data
+```{r}
+raw_predictions_df <- mergedz %>%
+  left_join(merged_data, by = c("site", "zone", "site_type")) %>%
+  dplyr::select(c(site,zone,site_type_pred_2024,site_type_pred_2025, macro_stipe_density_, density_ptecal, density_nerlue, density_lamset, density_eisarb, density_lamstump, density_macstump, lamr , macr , macj , nerj , ptej , lsetj , cov_articulated_coralline , cov_crustose_coralline , cov_encrusting_red , cov_fleshy_red , cov_stephanocystis , cov_dictyoneurum_spp  , cov_desmarestia_spp , cov_lam_holdfast_live ,cov_mac_holdfast_live,year))
+
+raw_patch_transitions <- raw_predictions_df %>%
+  mutate(
+    # assign the correct prediction for each year
+    predicted_patch_type = case_when(
+      year == 2024 ~ as.character(site_type_pred_2024),
+      year == 2025 ~ as.character(site_type_pred_2025),
+      TRUE ~ NA_character_
+    ),
+    # create the transition column
+    patch_transition = paste(site_type_pred_2024, "→", site_type_pred_2025)
+  ) %>%
+  # drop the old wide prediction columns, keep everything else (including species)
+  dplyr::select(site, zone, year, predicted_patch_type, patch_transition, everything(), -site_type_pred_2024, -site_type_pred_2025)
+
+
+#creating groupings that I want for nmds
+raw_patch_groupings <- raw_patch_transitions %>%
+  mutate(raw_patches_groups = case_when(
+    year == 2024 & predicted_patch_type == "BAR" ~ "2024 Barrens",
+    year == 2024 & predicted_patch_type == "INCIP" ~ "2024 Incipients",
+    year == 2024 & predicted_patch_type == "FOR" ~ "2024 Forests", 
+    year == 2025 & patch_transition %in% c("BAR → INCIP") ~ "2025 Recovered Incipient Patches",
+    year == 2025 & patch_transition %in% c("BAR → FOR", "INCIP → FOR") ~ "2025 Recovered Forest Patches",
+    year == 2025 & patch_transition %in% c("BAR → BAR") ~ "2025 Persistant Barren Patches",
+    year == 2025 & patch_transition %in% c("FOR → FOR") ~ "2025 Persistant Forest Patches",
+    year == 2025 & patch_transition %in% c("INCIP → INCIP") ~ "2025 Persistant Incipient Patches",
+    year == 2025 & patch_transition %in% c("INCIP → BAR", "FOR → BAR") ~ "2025 Regressed Barren Patches",
+    year == 2025 & patch_transition %in% c("FOR → INCIP") ~ "2025 Regressed Incipient Patches",
+    TRUE ~ NA_character_))
+```
+
+
+#nMDS of patch transitions from normalized data 
+##of entire patch mosaic
+```{r}
+
+nmds_groups <- patch_groupings %>%
+  dplyr::select(c(site, zone, year, patches_groups, macro_stipe_density_:cov_mac_holdfast_live)) %>%
+  filter(!is.na(patches_groups)) %>% #just keeping rows with my patch transitions 
+  droplevels()
+
+#getting community matrix and metadata matrix 
+meta_data <- nmds_groups %>%
+  dplyr::select(c(site, zone, year, patches_groups))
+
+comm_data <- nmds_groups %>%
+  dplyr::select(-c(site, zone, year, patches_groups))
+  
+#euclidean distance used because zscored data has lots of negatives so the hellinger/ bray curtis did not work 
+set.seed(1)
+nmds <- metaMDS(comm_data, distance = "euclidean", k = 2, trymax = 999, trace = FALSE)
+
+#centroids plot (centroids only)
+scores_df <- as.data.frame(scores(nmds, display = "sites"))
+scores_df$group <- factor(meta_data$patches_groups)
+
+centroids <- scores_df %>%
+  group_by(group) %>%
+  summarise(
+    NMDS1 = mean(NMDS1),
+    NMDS2 = mean(NMDS2),
+    n = n(),
+    .groups = "drop"
+  )
+
+ggplot(centroids, aes(NMDS1, NMDS2, label = group)) +
+  geom_point(size = 4) +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(
+    title = "NMDS centroids by patch group",
+    subtitle = paste0("Euclidean distance on z-scored data; Stress = ", round(nmds$stress, 3))
+  )
+
+#PERMANOVA on the same distance used by NMDS
+dist_euc <- vegdist(comm_data, method = "euclidean")
+
+perm <- adonis2(dist_euc ~ patches_groups, data = meta_data, permutations = 999)
+perm
+
+#dispersion check (report alongside PERMANOVA)
+disp <- betadisper(dist_euc, meta_data$patches_groups)
+anova(disp)
+permutest(disp, permutations = 999)
+```
+##of just recovery transitions
+```{r}
+recovery_groups <- patch_groupings %>%
+  filter(patches_groups %in% c(
+    "2024 Barrens",
+    "2024 Incipients",
+    "2024 Forests",
+    "2025 Recovered Forest Patches",
+    "2025 Recovered Incipient Patches"
+  ))
+
+nmds_groups <- recovery_groups %>%
+  dplyr::select(c(site, zone, year, patches_groups, macro_stipe_density_:cov_mac_holdfast_live)) %>%
+  filter(!is.na(patches_groups)) %>% #just keeping rows with my patch transitions 
+  droplevels()
+
+#getting community matrix and metadata matrix 
+meta_data <- nmds_groups %>%
+  dplyr::select(c(site, zone, year, patches_groups))
+
+comm_data <- nmds_groups %>%
+  dplyr::select(-c(site, zone, year, patches_groups))
+  
+#euclidean distance used because zscored data has lots of negatives so the hellinger/ bray curtis did not work 
+set.seed(1)
+nmds <- metaMDS(comm_data, distance = "euclidean", k = 2, trymax = 999, trace = FALSE)
+
+#centroids plot (centroids only)
+scores_df <- as.data.frame(scores(nmds, display = "sites"))
+scores_df$group <- factor(meta_data$patches_groups)
+
+centroids <- scores_df %>%
+  group_by(group) %>%
+  summarise(
+    NMDS1 = mean(NMDS1),
+    NMDS2 = mean(NMDS2),
+    n = n(),
+    .groups = "drop"
+  )
+
+ggplot(centroids, aes(NMDS1, NMDS2, label = group)) +
+  geom_point(size = 4) +
+  ggrepel::geom_text_repel() +
+  theme_classic() +
+  labs(
+    title = "NMDS centroids by recovering patch group",
+    subtitle = paste0("Euclidean distance on z-scored data; Stress = ", round(nmds$stress, 3))
+  )
+
+#PERMANOVA on the same distance used by NMDS
+dist_euc <- vegdist(comm_data, method = "euclidean")
+
+perm <- adonis2(dist_euc ~ patches_groups, data = meta_data, permutations = 999)
+perm
+
+#post hoc tests
+#bar -> incip
+keep <- meta_data$patches_groups %in% c(
+  "2024 Barrens",
+  "2025 Recovered Incipient Patches"
+)
+
+sub_meta <- meta_data[keep, , drop = FALSE]
+sub_meta$patches_groups <- droplevels(as.factor(sub_meta$patches_groups))
+
+sub_dist <- as.dist(as.matrix(dist_euc)[keep, keep])
+
+# run PERMANOVA
+pair_test <- adonis2(sub_dist ~ patches_groups,
+                     data = sub_meta,
+                     permutations = 999)
+pair_test
+
+#bar -> for
+keep <- meta_data$patches_groups %in% c(
+  "2024 Barrens",
+  "2025 Recovered Forest Patches"
+)
+
+sub_meta <- meta_data[keep, , drop = FALSE]
+sub_meta$patches_groups <- droplevels(as.factor(sub_meta$patches_groups))
+
+sub_dist <- as.dist(as.matrix(dist_euc)[keep, keep])
+
+# run PERMANOVA
+pair_test <- adonis2(sub_dist ~ patches_groups,
+                     data = sub_meta,
+                     permutations = 999)
+pair_test
+
+#incip -> for
+keep <- meta_data$patches_groups %in% c(
+  "2024 Incipients",
+  "2025 Recovered Forest Patches"
+)
+
+sub_meta <- meta_data[keep, , drop = FALSE]
+sub_meta$patches_groups <- droplevels(as.factor(sub_meta$patches_groups))
+
+sub_dist <- as.dist(as.matrix(dist_euc)[keep, keep])
+
+# run PERMANOVA
+pair_test <- adonis2(sub_dist ~ patches_groups,
+                     data = sub_meta,
+                     permutations = 999)
+pair_test
+
+
+
+#dispersion check (report alongside PERMANOVA)
+disp <- betadisper(dist_euc, meta_data$patches_groups)
+anova(disp)
+permutest(disp, permutations = 999)
+
+
+
+# --- NMDS scores (sites) ---
+scores_df <- as.data.frame(scores(nmds, display = "sites")) %>%
+  mutate(
+    group = factor(meta_data$patches_groups),
+    zone  = factor(meta_data$zone))
+
+# --- Centroids ---
+centroids <- scores_df %>%
+  group_by(group) %>%
+  summarise(
+    NMDS1 = mean(NMDS1),
+    NMDS2 = mean(NMDS2),
+    n = n(),
+    .groups = "drop")
+
+# --- Define recovery trajectories (edit if your naming differs) ---
+traj <- tibble(
+  from = c(
+    "2024 Barrens",
+    "2024 Barrens",
+    "2024 Incipients"
+  ),
+  to = c(
+    "2025 Recovered Incipient Patches",
+    "2025 Recovered Forest Patches",
+    "2025 Recovered Forest Patches"
+  )
+) %>%
+  left_join(centroids, by = c("from" = "group")) %>%
+  rename(x = NMDS1, y = NMDS2) %>%
+  left_join(centroids, by = c("to" = "group")) %>%
+  rename(xend = NMDS1, yend = NMDS2)
+
+
+traj$type <- c("Barren to Incipient", "Barren to Forest", "Incipient to Forest")
+
+# --- Plot ---
+ggplot() +
+  # faint points for context (comment out if you want centroids only)
+  geom_point(
+    data = scores_df,
+    aes(NMDS1, NMDS2, shape = zone),
+    alpha = 0.25, size = 2, color = "grey35"
+  ) +
+
+  # arrows showing trajectories
+  geom_segment(
+    data = traj,
+    aes(x = x, y = y, xend = xend, yend = yend, color = type),
+    arrow = arrow(length = unit(4, "mm")),
+    linewidth = 2) +
+
+  # centroids
+  geom_point(
+    data = centroids,
+    aes(NMDS1, NMDS2),
+    size = 4.2, shape = 21, fill = "white", color = "black", stroke = 1
+  ) +
+
+  # centroid labels
+  ggrepel::geom_text_repel(
+    data = centroids,
+    aes(NMDS1, NMDS2, label = group),
+    size = 3.6,
+    box.padding = 0.6,
+    point.padding = 0.3,
+    min.segment.length = 0
+  ) +
+
+  coord_equal() +
+  coord_cartesian(xlim = c(-1, 1), ylim = c(-1, 1)) +
+
+  theme_classic(base_size = 12) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 10),
+    plot.title = element_text(face = "bold"),
+    plot.subtitle = element_text(size = 10)
+  ) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    shape = "Zone")
+
+
+ggsave(
+  "transition_nmds.png",
+  width = 10,
+  height = 7,
+  units = "in",
+  dpi = 600
+)
+
+```
+
+##PCA of just 2024 (Q1)
+```{r}
+groups_2024 <- patch_groupings %>%
+   filter(patches_groups %in% c(
+    "2024 Barrens",
+    "2024 Incipients",
+    "2024 Forests") )
+
+year_1_groups <- groups_2024 %>%
+  dplyr::select(c(site, zone, patches_groups, macro_stipe_density_:cov_mac_holdfast_live)) %>%
+  filter(!is.na(patches_groups)) %>% #just keeping rows with my patch transitions 
+  droplevels()
+
+#getting community matrix and metadata matrix 
+meta_data <- year_1_groups %>%
+  dplyr::select(c(site, zone, patches_groups))
+
+comm_data <- year_1_groups %>%
+  dplyr::select(-c(site, zone, patches_groups))
+  
+pca_2024 <- prcomp(comm_data, scale. = FALSE)
+summary(pca_2024)
+biplot(pca_2024)
+  
+
+scores <- as.data.frame(pca_2024$x)
+scores$patch <- meta_data$patches_groups
+
+ggplot(scores, aes(PC1, PC2, color = patch)) +
+  geom_point(size = 3) +
+  theme_classic()
+
+
+set.seed(1)
+adonis_result <- adonis2(
+  comm_data ~ patches_groups,
+  data = meta_data,
+  method = "euclidean"
+)
+
+adonis_result
+
+
+disp <- betadisper(dist(comm_data), meta_data$patches_groups)
+anova(disp)
+```
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+# variance explained
+var_explained <- summary(pca_2024)$importance[2, 1:2] * 100
+
+scores <- as.data.frame(pca_2024$x)
+scores$patch <- meta_data$patches_groups
+
+ggplot(scores, aes(PC1, PC2, color = patch)) +
+  geom_point(size = 3, alpha = 0.9) +
+  stat_ellipse(aes(fill = patch),
+               geom = "polygon",
+               alpha = 0.2,
+               color = NA) +
+  stat_ellipse(level = 0.95, linewidth = 1) +
+ scale_color_brewer(palette = "Set1") + 
+  labs(
+    x = paste0("PC1 (", round(var_explained[1],1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2],1), "%)"),
+    color = "Patch Type",
+    fill = "Patch Type"
+  ) +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.title = element_text(face = "bold"),
+    legend.position = "right"
+  )
+
+
+ggsave(
+  "pca_2024.png",
+  width = 10,
+  height = 7,
+  units = "in",
+  dpi = 600
+)
+```
+
+##PCA of both years (Q1)
+```{r}
+
+#getting community matrix and metadata matrix 
+meta_data <- patch_groupings %>%
+  dplyr::select(c(site, zone, year, predicted_patch_type))
+
+species_mat <- patch_groupings %>%
+  dplyr::select(-c(site:patch_transition, patches_groups))
+  
+pca <- prcomp(species_mat, scale. = FALSE)
+summary(pca)
+biplot(pca)
+  
+scores_sites <- as.data.frame(pca$x)
+
+plot_data <- bind_cols(meta_data, scores_sites)
+
+ggplot(plot_data,
+       aes(PC1, PC2,
+           color = predicted_patch_type,
+           shape = year)) +
+  geom_point(size = 3, alpha = 0.8) +
+  theme_classic()
+
+loadings <- as.data.frame(pca$rotation)
+loadings %>%
+  arrange(desc(abs(PC1))) %>%
+  head(10)
+
+set.seed(1)
+adonis2(species_mat ~ year * predicted_patch_type,
+        data = meta_data)
+
+
+scores <- data.frame(
+  PC1 = pca$x[,1],
+  PC2 = pca$x[,2],
+  patch = meta_data$predicted_patch_type,
+  year  = meta_data$year
+)
+
+var_explained <- (pca$sdev^2 / sum(pca$sdev^2)) * 100
+
+centroids <- scores %>%
+  group_by(patch, year) %>%
+  summarise(
+    PC1 = mean(PC1),
+    PC2 = mean(PC2),
+    .groups = "drop"
+  )
+
+ggplot(scores, aes(PC1, PC2, color = patch)) +
+
+  ## sample points
+  geom_point(aes(shape = year),
+             size = 3,
+             alpha = 0.7) +
+
+  ## filled ellipses (community spread)
+  stat_ellipse(aes(fill = patch),
+               geom = "polygon",
+               alpha = 0.12,
+               color = NA,
+               level = 0.95) +
+
+  ## ellipse outlines
+  stat_ellipse(linewidth = 1,
+               level = 0.95,
+               show.legend = FALSE) +
+
+  ## centroid points
+  geom_point(data = centroids,
+             size = 5,
+             stroke = 1.2,
+             shape = 21,
+             fill = "white") +
+
+  ## temporal trajectories
+  geom_path(data = centroids,
+            aes(group = patch),
+            linewidth = 1.2,
+            arrow = arrow(length = unit(0.15,"cm"))) +
+
+  ## colorblind-safe palette
+  scale_color_brewer(palette = "Set1") +
+  scale_fill_brewer(palette = "Set1") +
+
+  labs(
+    x = paste0("PC1 (", round(var_explained[1],1), "%)"),
+    y = paste0("PC2 (", round(var_explained[2],1), "%)"),
+    color = "Patch Type",
+    fill  = "Patch Type",
+    shape = "Year"
+  ) +
+
+  coord_equal() +   # ⭐ VERY IMPORTANT
+
+  theme_classic(base_size = 14) +
+  theme(
+    axis.title = element_text(face = "bold"),
+    legend.position = "right",
+    legend.box = "vertical"
+  )
+
+ggsave(
+  "pca_2024.png",
+  width = 10,
+  height = 7,
+  units = "in",
+  dpi = 600
+)
+```
+
+#SIMPER on raw data
+```{r}
+raw_groups <- raw_patch_groupings %>%
+  dplyr::select(c(site, zone, year, raw_patches_groups, macro_stipe_density_:cov_mac_holdfast_live)) %>%
+  filter(!is.na(raw_patches_groups)) %>% #just keeping rows with my patch transitions 
+  droplevels()
+
+#just percent cover species 
+raw_cover <- raw_groups %>%
+  dplyr::select(-c(macro_stipe_density_:lsetj))
+cover_meta <- raw_cover %>%
+  dplyr::select(c(site, zone, year, raw_patches_groups))
+cover_comm<- raw_cover %>%
+  dplyr::select(-c(site, zone, year, raw_patches_groups))
+
+sim_cover <- simper(cover_comm, cover_meta$raw_patches_groups, permutations = 999)
+
+summary(sim_cover)
+
+
+#just density species 
+raw_density <- raw_groups %>%
+  dplyr::select(c(site:lsetj))
+
+  
+den_meta <- raw_density %>%
+  dplyr::select(c(site, zone, year, raw_patches_groups))
+den_comm<- raw_density %>%
+  dplyr::select(-c(site, zone, year, raw_patches_groups))
+den_comm_eps <- den_comm + 1e-6 #adding in a tiny value to accoutn for zero inflation, dont want to get rid of zeros 
+d <- vegdist(den_comm_eps, method="bray")
+sim_den <- simper(den_comm_eps, den_meta$raw_patches_groups, permutations = 999)
+
+summary(sim_den)
+  
+
+
+
+```
+
+
+#random forest model 
+```{r}
+library(nnet)
+library(randomForest)
+model_state <- multinom(predicted_patch_type ~ ., data = patch_transitions)
+
+species_2024 <- z_year_one_data %>%
+  dplyr::select(c(year, 
+                site,
+                zone,
+                site_type_pred,
+                cov_articulated_coralline,
+                cov_crustose_coralline,
+                cov_encrusting_red,
+                cov_fleshy_red,
+                cov_stephanocystis,
+                cov_dictyoneurum_spp,
+                cov_desmarestia_spp,
+                cov_lam_holdfast_live,
+                cov_mac_holdfast_live, macro_stipe_density_,
+                density_ptecal, 
+                density_nerlue,
+                density_lamset,
+                density_eisarb,
+                lamr,
+                macr,
+                macj,
+                nerj,
+                ptej,
+                lsetj))
+                
+
+
+#just on 2024 data
+rf_2024 <- randomForest(as.factor(site_type_pred) ~ . -year,
+  data = species_2024,
+  importance = TRUE)
+importance(rf_2024)
+
+rf_state <- randomForest(
+  as.factor(predicted_patch_type) ~ . - patch_transition,
+  data = patch_transitions,
+  importance = TRUE)
+importance(rf_state)
+
+```
+
+
+
+#Q3: Diversity and Evenness
+```{r}
+print(raw_patch_groupings)
+
+for_for <- raw_patch_groupings %>%
+  dplyr::select(c(site, zone, raw_patches_groups,-predicted_patch_type,-patch_transition,macro_stipe_density_:raw_patches_groups)) %>%
+  filter(raw_patches_groups %in% c(
+    "2025 Persistant Forest Patches",
+    "2025 Recovered Forest Patches"))
+
+
 ```
 

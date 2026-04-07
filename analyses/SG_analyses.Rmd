@@ -85,7 +85,6 @@ quad_avgs <- quad_transect_avgs %>%
   )
 
 
-
 #averaging transects
 kelp_avgs <- kelp_data %>%
   group_by(site, site_type, zone, survey_date) %>%
@@ -113,6 +112,7 @@ merged_data <- kelp_avgs %>%
 #creating a new column that just has years for future analysis  
 merged_data$year <- as.numeric(format(merged_data$survey_date, "%Y"))
 
+print(merged_data)
 ```
 
 #2024 data 
@@ -759,21 +759,22 @@ ggplot() +
     aes(x = NMDS1, y = NMDS2, color = pred_patch),
     size = 3.5, alpha = 0.85
   ) +
+  coord_cartesian(expand=TRUE)+
   stat_ellipse(
     data = site_scores,
     aes(x = NMDS1, y = NMDS2, color = pred_patch),
-    type = "t",
+    type = "norm",
     linetype = "solid",
     size = 0.8,
     alpha = 0.15,
     show.legend = FALSE
   ) +
-  #geom_segment(
-   # data = vec_scores,
-   # aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-    #arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
-    #color = "black",
-    #size = 0.8
+  geom_segment(
+   data = vec_scores,
+   aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    color = "black",
+    size = 0.8 )+ 
 
 #  geom_text_repel(
     #data = vec_scores,
@@ -885,6 +886,7 @@ ggplot() +
     aes(x = NMDS1, y = NMDS2, color = pred_patch),
     size = 3.5, alpha = 0.85
   ) +
+  
   stat_ellipse(
     data = site_scores,
     aes(x = NMDS1, y = NMDS2, color = pred_patch),
@@ -894,12 +896,12 @@ ggplot() +
     alpha = 0.15,
     show.legend = FALSE
   ) +
-  #geom_segment(
-   # data = vec_scores,
-   # aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
-    #arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
-    #color = "black",
-    #size = 0.8
+  geom_segment(
+    data = vec_scores,
+    aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    color = "black",
+    size = 0.8) + 
 
 #  geom_text_repel(
     #data = vec_scores,
@@ -927,7 +929,382 @@ ggplot() +
     axis.title = element_text(face = "bold", size = 14),
     axis.text = element_text(size = 12)
   )
+
+
+
 ```
 
+##C) only swath algae 
+```{r}
+# Load packages
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+library(grid)
+
+#prepare community matrix
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj")
+
+comm_matrix <- bar_for[, comm_cols]
+
+# hellinger transformation to account for many zeros
+comm_hellinger <- decostand(comm_matrix, method = "hellinger")
+
+summary(comm_hellinger[, comm_cols])
+anyNA(comm_hellinger[, comm_cols])
+cor(comm_hellinger[, comm_cols])
+
+
+#environmental matrix
+bar_for$pred_patch <- as.factor(bar_for$pred_patch)
+
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2",
+              "prop_purp_concealedm2", "prop_red_concealedm2",
+              "tegula_densitym2", "pomaulax_densitym2", "zone")
+env_matrix <- bar_for[, env_vars]
+
+set.seed(123)
+
+# nmds
+nmds_model <- metaMDS(comm_hellinger, distance = "bray", k = 2, trymax = 300)
+
+
+#envfit
+env_matrix_numeric <- env_matrix %>% 
+  dplyr::select(risk_index, relief_cm, purple_urchin_densitym2, red_urchin_densitym2,
+         prop_purp_concealedm2, prop_red_concealedm2, tegula_densitym2, pomaulax_densitym2)
+
+envfit_model <- envfit(nmds_model, env_matrix_numeric, permutations = 999)
+
+# --- FIX: match site_scores and pred_patch correctly ---
+site_scores <- as.data.frame(scores(nmds_model, display = "sites"))
+site_scores$site_id <- rownames(site_scores)            # keep site IDs
+bar_for$site_id <- rownames(bar_for)                    # add site IDs to bar_for
+
+site_scores <- left_join(
+  site_scores,
+  bar_for[, c("site_id", "pred_patch")], 
+  by = "site_id"
+)
+
+# Check grouping counts after join
+print(table(site_scores$pred_patch))
+
+# --- Get significant environmental vectors (unchanged) ---
+vec_scores <- as.data.frame(scores(envfit_model, display = "vectors"))
+vec_scores$pval <- envfit_model$vectors$pvals
+vec_scores <- vec_scores %>% filter(pval < 0.05)
+vec_scores$variable <- rownames(vec_scores)
+
+# Scale by r values
+vec_scores <- vec_scores %>%
+  mutate(
+    NMDS1 = NMDS1 * envfit_model$vectors$r[rownames(vec_scores)],
+    NMDS2 = NMDS2 * envfit_model$vectors$r[rownames(vec_scores)]
+  )
+
+
+
+# --- 4. Plot NMDS ---
+ggplot() +
+  # Plot points first
+  geom_point(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    size = 3.5, alpha = 0.85
+  ) +
+  # Plot ellipses separately
+  stat_ellipse(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    type = "norm",    # stable
+    size = 0.8,
+    alpha = 0.15,
+    show.legend = FALSE
+  ) + 
+  # Environmental vectors
+  geom_segment(
+    data = vec_scores,
+    aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    color = "black",
+    size = 0.8
+  ) +
+  geom_text(
+    data = vec_scores,
+    aes(x = NMDS1, y = NMDS2, label = variable),
+    hjust = 1.2, vjust = 1.2,
+    size = 4
+  ) +
+  # Label faraway points so they are not "hidden"
+  geom_text(
+    data = faraway_points,
+    aes(x = NMDS1, y = NMDS2, label = site_id),
+    vjust = -0.8, hjust = 0.5,
+    size = 3.5,
+    color = "black"
+  ) +
+  # Color scale
+  scale_color_manual(values = c("BAR" = "red", "FOR" = "blue")) +
+  # Axis limits auto-scaled to include all points
+  coord_cartesian(expand = TRUE) +
+  theme_bw() +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.key = element_rect(fill = NA),
+    legend.key.size = unit(0.8, "cm"),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
+
+
+rowSums(comm_matrix)  # sums per site
+
+```
+
+
+##B) 
+```{r}
+# Load packages
+library(vegan)
+library(ggplot2)
+library(ggrepel)
+library(dplyr)
+
+# Prepare community matrix 
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2", "lamr",
+  "macr", "macj", "nerj", "ptej",
+  "lsetj", "eisj")
+
+comm_matrix <- incip_for[, comm_cols]
+
+# Hellinger transform to downweight zeros
+comm_hellinger <- decostand(comm_matrix, method = "hellinger")
+
+#Prepare environmental variables
+incip_for$pred_patch <- as.factor(incip_for$pred_patch)
+
+env_vars <- c("risk_index", "relief_cm", "purple_urchin_densitym2","red_urchin_densitym2", "prop_purp_concealedm2", "prop_red_concealedm2",
+              "tegula_densitym2", "pomaulax_densitym2", "zone")
+env_matrix <- incip_for[, env_vars]
+
+
+set.seed(123)  # reproducibility
+
+# nmds
+nmds_model <- metaMDS(comm_hellinger, distance = "bray", k = 2, trymax = 100)
+
+# envfit
+env_matrix_numeric <- env_matrix %>% 
+  dplyr::select(risk_index, relief_cm, purple_urchin_densitym2, red_urchin_densitym2,
+         prop_purp_concealedm2, prop_red_concealedm2, tegula_densitym2, pomaulax_densitym2)
+
+envfit_model <- envfit(nmds_model, env_matrix_numeric, permutations = 999)
+
+# site scores
+site_scores <- as.data.frame(scores(nmds_model, display = "sites"))
+site_scores$pred_patch <- incip_for$pred_patch  # group labels
+
+# significiant env vectors 
+vec_scores <- as.data.frame(scores(envfit_model, display = "vectors"))
+vec_scores$pval <- envfit_model$vectors$pvals
+vec_scores <- vec_scores %>% filter(pval < 0.05)
+vec_scores$variable <- rownames(vec_scores)
+
+# Scale arrows by r (strength of correlation)
+vec_scores <- vec_scores %>%
+  mutate(NMDS1 = NMDS1 * envfit_model$vectors$r[rownames(vec_scores)],
+         NMDS2 = NMDS2 * envfit_model$vectors$r[rownames(vec_scores)])
+
+#PERMANOVA
+permanova_res <- adonis2(comm_hellinger ~ pred_patch, data = incip_for, permutations = 999)
+R2 <- round(permanova_res$R2[1], 3)
+pval <- permanova_res$`Pr(>F)`[1]
+
+# Format p-value nicely for display
+pval_label <- ifelse(pval < 0.001, "< 0.001", paste0("= ", round(pval, 3)))
+
+# plot
+ggplot() +
+  geom_point(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    size = 3.5, alpha = 0.85
+  ) +
+  stat_ellipse(
+    data = site_scores,
+    aes(x = NMDS1, y = NMDS2, color = pred_patch),
+    type = "t",
+    linetype = "solid",
+    size = 0.8,
+    alpha = 0.15,
+    show.legend = FALSE
+  ) +
+  geom_segment(
+   data = vec_scores,
+   aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    arrow = arrow(length = unit(0.3, "cm"), type = "closed"),
+    color = "black",
+    size = 0.8 )+ 
+  theme_minimal(base_size = 14) +
+  labs(
+    x = "NMDS1",
+    y = "NMDS2",
+    color = "Patch Type"
+  ) +
+  theme_bw()+
+  scale_color_manual(values = c("INCIP" = "forestgreen", "FOR" = "blue")) +
+  theme(
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    legend.key = element_rect(fill = NA),
+    legend.key.size = unit(0.8, "cm"),
+    plot.title = element_text(face = "bold", hjust = 0.5, size = 16),
+    axis.title = element_text(face = "bold", size = 14),
+    axis.text = element_text(size = 12)
+  )
+```
+
+#Persistant FOR vs. New For 
+```{r}
+library(dplyr)
+library(stringr)
+library(vegan)
+library(ggplot2)
+
+# --- Filter dataset for transitions to forest ---
+three_groups <- patch_trans_data %>%
+  filter(str_detect(patch_transition, "BAR.*→ FOR|INCIP.*→ FOR|FOR.*→ FOR")) %>%
+  filter(year == "2025") %>%
+  mutate(
+    forest_type = case_when(
+      str_detect(patch_transition, "FOR.*→ FOR") ~ "Persistent",
+      str_detect(patch_transition, "BAR.*→ FOR") ~ "BAR_New",
+      str_detect(patch_transition, "INCIP.*→ FOR") ~ "INCIP_New"
+    )
+  )
+
+# --- Define community columns ---
+comm_cols <- c(
+  "macro_stipe_density_", "density_purps_on_kelp", "density_ptecal",
+  "density_eisarb", "density_nerlue", "density_lamset", "density_cancer_spp",
+  "density_lamstump", "density_macstump",
+  "purple_urchin_densitym2", "red_urchin_densitym2",
+  "lamr", "macr", "macj", "nerj", "ptej", "lsetj", "eisj"
+)
+
+# --- Build community matrix ---
+comm_matrix <- three_groups[, comm_cols]
+
+# Give the community matrix row names to match metadata
+rownames(comm_matrix) <- rownames(three_groups)
+
+# --- Remove rows with all zeros ---
+comm_matrix <- comm_matrix[rowSums(comm_matrix, na.rm = TRUE) > 0, ]
+
+# --- Hellinger transform ---
+comm_hellinger_3 <- decostand(comm_matrix, method = "hellinger")
+
+# --- Run NMDS ---
+set.seed(42)
+nmds3 <- metaMDS(comm_hellinger_3, distance = "bray", k = 2, trymax = 100)
+
+# Remove species with no variation
+comm_envfit <- comm_hellinger_3[, apply(comm_hellinger_3, 2, sd) > 0]
+
+# Fit species vectors
+set.seed(42)
+fit_species <- envfit(nmds3, comm_envfit, permutations = 999)
+
+# Extract vector scores
+fit_scores <- as.data.frame(scores(fit_species, "vectors"))
+fit_scores$species <- rownames(fit_scores)
+fit_scores$r2 <- fit_species$vectors$r
+fit_scores$pval <- fit_species$vectors$pvals
+
+# Keep only significant species (p < 0.05)
+sig_species <- fit_scores %>%
+  filter(pval <= 0.05) %>%
+  arrange(desc(r2)) %>%
+  slice_head(n = 10)  # top 10 by r² strength
+
+arrow_multiplier <- ordiArrowMul(fit_species)
+
+sig_species <- sig_species %>%
+  mutate(
+    NMDS1 = NMDS1 * arrow_multiplier,
+    NMDS2 = NMDS2 * arrow_multiplier
+  )
+
+
+# --- Extract site scores ---
+nmds3_scores <- as.data.frame(scores(nmds3, display = "sites"))
+
+# Merge NMDS scores with metadata using row names
+nmds3_scores <- nmds3_scores %>%
+  mutate(row_id = rownames(.)) %>%
+  left_join(
+    three_groups %>%
+      mutate(row_id = rownames(.)) %>%
+      select(row_id, forest_type),
+    by = "row_id"
+  )
+
+# --- Plot ---
+ggplot(nmds3_scores, aes(x = NMDS1, y = NMDS2, color = forest_type)) +
+  geom_point(size = 3, alpha = 0.8) +
+  stat_ellipse(level = 0.95, linetype = "dashed") +
+  # species vectors
+  geom_segment(
+    data = sig_species,
+    aes(x = 0, y = 0, xend = NMDS1, yend = NMDS2),
+    arrow = arrow(length = unit(0.25, "cm")),
+    color = "black"
+  ) +
+  geom_text(
+    data = sig_species,
+    aes(x = NMDS1 * 1.1, y = NMDS2 * 1.1, label = species),
+    color = "black",
+    size = 3,
+    fontface = "italic",
+    hjust = 0.5
+  ) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "NMDS of Forest Communities",
+    subtitle = "Top 10 significant species vectors (p < 0.05)",
+    color = "Forest Type"
+  )
+print(three_groups)
+#PERMANOVA
+permanova_res <- adonis2(comm_hellinger_3 ~ patch_transition, data = three_groups, permutations = 999)
+R2 <- round(permanova_res$R2[1], 3)
+pval <- permanova_res$`Pr(>F)`[1]
+#no significant difference between forest communities of recovered forest patches to persistent forests 
+```
+```{r}
+permanova_res <- adonis2(comm_hellinger_3 ~ forest_type, data = three_groups, permutations = 999)
+R2 <- round(permanova_res$R2[1], 3)
+pval <- permanova_res$`Pr(>F)`[1]
+
+
+```
 
 
